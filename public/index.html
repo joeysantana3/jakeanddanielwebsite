@@ -149,11 +149,60 @@
       text-align: center;
       margin-top: 5px;
     }
+
+    #badge {
+      display: none;
+      text-align: center;
+      margin-top: 8px;
+      padding: 6px 14px;
+      background: linear-gradient(135deg, #e44d26, #f5a623);
+      border-radius: 20px;
+      font-size: 14px;
+      font-weight: bold;
+      color: #fff;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.4);
+      box-shadow: 0 0 15px rgba(229, 77, 38, 0.5);
+      animation: badgePulse 2s ease-in-out infinite;
+    }
+
+    #badge.visible {
+      display: block;
+    }
+
+    @keyframes badgePulse {
+      0%, 100% { box-shadow: 0 0 15px rgba(229, 77, 38, 0.5); }
+      50% { box-shadow: 0 0 25px rgba(229, 77, 38, 0.9); }
+    }
+
+    #graduation-banner {
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: calc((100% - 220px) / 2);
+      transform: translate(-50%, -50%);
+      font-size: 36px;
+      font-weight: bold;
+      color: #fff;
+      text-align: center;
+      z-index: 20;
+      pointer-events: none;
+      animation: bannerFade 2.5s ease-out forwards;
+    }
+
+    @keyframes bannerFade {
+      0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+      20% { opacity: 1; transform: translate(-50%, -50%) scale(1.1); }
+      30% { transform: translate(-50%, -50%) scale(1); }
+      80% { opacity: 1; }
+      100% { opacity: 0; }
+    }
   </style>
 </head>
 <body>
-  <div id="score-board">Cookies: <span id="score">0</span></div>
+  <div id="score-board"><span id="item-label">Cookies</span>: <span id="score">0</span></div>
   <div id="multiplier-display">x1 multiplier</div>
+  <div id="badge">Pizza Master</div>
+  <div id="graduation-banner">You graduated to Pizza!</div>
   <div id="game-area">
   </div>
   <div id="instructions">Click the cookie before it moves!</div>
@@ -171,9 +220,14 @@
     const scoreEl = document.getElementById("score");
     const gameArea = document.getElementById("game-area");
     let score = 0;
+    let totalEarned = 0;
     let multiplier = 1;
     let multiplierLevel = 0;
+    let graduated = false;
     const cookies = [];
+    const itemLabel = document.getElementById("item-label");
+    const badge = document.getElementById("badge");
+    const banner = document.getElementById("graduation-banner");
 
     const multiplierBtn = document.getElementById("buy-multiplier");
     const multiplierCostEl = document.getElementById("multiplier-cost");
@@ -209,10 +263,23 @@
       }
     });
 
+    function checkGraduation() {
+      if (!graduated && totalEarned >= 100) {
+        graduated = true;
+        itemLabel.textContent = "Pizzas";
+        document.title = "Pizza Clicker";
+        badge.classList.add("visible");
+        banner.style.display = "block";
+        setTimeout(() => banner.style.display = "none", 2500);
+        // Swap all existing cookies to pizza
+        cookies.forEach(c => c.el.textContent = "\u{1F355}");
+      }
+    }
+
     function createCookie(startX, startY) {
       const el = document.createElement("div");
       el.className = "cookie";
-      el.textContent = "\u{1F36A}";
+      el.textContent = graduated ? "\u{1F355}" : "\u{1F36A}";
       gameArea.appendChild(el);
 
       const angle = Math.random() * Math.PI * 2;
@@ -228,8 +295,10 @@
       el.addEventListener("click", (e) => {
         e.stopPropagation();
         score += multiplier;
+        totalEarned += multiplier;
         scoreEl.textContent = score;
         updateStore();
+        checkGraduation();
 
         // Speed up all cookies slightly every 5 clicks
         if (score % 5 === 0) {
