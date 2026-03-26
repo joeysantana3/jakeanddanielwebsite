@@ -271,8 +271,12 @@
         badge.classList.add("visible");
         banner.style.display = "block";
         setTimeout(() => banner.style.display = "none", 2500);
-        // Swap all existing cookies to pizza
-        cookies.forEach(c => c.el.textContent = "\u{1F355}");
+        // Remove all existing cookies
+        cookies.forEach(c => c.el.remove());
+        cookies.length = 0;
+        // Spawn a single pizza in the center
+        const rect = gameArea.getBoundingClientRect();
+        createCookie(rect.width / 2 - 50, rect.height / 2 - 50);
       }
     }
 
