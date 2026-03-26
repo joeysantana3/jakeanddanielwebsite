@@ -32,7 +32,7 @@
 
     #game-area {
       position: relative;
-      width: 100%;
+      width: calc(100% - 220px);
       flex: 1;
     }
 
@@ -78,19 +78,136 @@
       color: #666;
       font-size: 14px;
     }
+
+    #store {
+      position: fixed;
+      top: 0;
+      right: 0;
+      width: 220px;
+      height: 100vh;
+      background: rgba(0, 0, 0, 0.7);
+      border-left: 2px solid #333;
+      padding: 20px 15px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      z-index: 10;
+    }
+
+    #store h2 {
+      font-size: 22px;
+      text-align: center;
+      color: #f5a623;
+      margin-bottom: 5px;
+    }
+
+    .store-item {
+      background: #2a2a4a;
+      border: 2px solid #444;
+      border-radius: 10px;
+      padding: 12px;
+      cursor: pointer;
+      transition: border-color 0.2s, opacity 0.2s;
+    }
+
+    .store-item:hover:not(.sold-out) {
+      border-color: #f5a623;
+    }
+
+    .store-item.sold-out {
+      opacity: 0.4;
+      cursor: default;
+    }
+
+    .store-item .item-name {
+      font-size: 16px;
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+
+    .store-item .item-desc {
+      font-size: 12px;
+      color: #aaa;
+      margin-bottom: 8px;
+    }
+
+    .store-item .item-cost {
+      font-size: 14px;
+      color: #f5a623;
+      font-weight: bold;
+    }
+
+    .store-item .item-owned {
+      font-size: 12px;
+      color: #6f6;
+      float: right;
+    }
+
+    #multiplier-display {
+      font-size: 16px;
+      color: #aaa;
+      text-align: center;
+      margin-top: 5px;
+    }
   </style>
 </head>
 <body>
   <div id="score-board">Cookies: <span id="score">0</span></div>
+  <div id="multiplier-display">x1 multiplier</div>
   <div id="game-area">
   </div>
   <div id="instructions">Click the cookie before it moves!</div>
+
+  <div id="store">
+    <h2>Store</h2>
+    <div class="store-item" id="buy-multiplier">
+      <div class="item-name">2x Multiplier</div>
+      <div class="item-desc">Every click earns double points. Stacks!</div>
+      <div><span class="item-cost" id="multiplier-cost">50 cookies</span><span class="item-owned" id="multiplier-owned"></span></div>
+    </div>
+  </div>
 
   <script>
     const scoreEl = document.getElementById("score");
     const gameArea = document.getElementById("game-area");
     let score = 0;
+    let multiplier = 1;
+    let multiplierLevel = 0;
     const cookies = [];
+
+    const multiplierBtn = document.getElementById("buy-multiplier");
+    const multiplierCostEl = document.getElementById("multiplier-cost");
+    const multiplierOwnedEl = document.getElementById("multiplier-owned");
+    const multiplierDisplay = document.getElementById("multiplier-display");
+
+    function getMultiplierCost() {
+      return 50 * Math.pow(2, multiplierLevel);
+    }
+
+    function updateStore() {
+      const cost = getMultiplierCost();
+      multiplierCostEl.textContent = cost + " cookies";
+      multiplierDisplay.textContent = "x" + multiplier + " multiplier";
+      if (multiplierLevel > 0) {
+        multiplierOwnedEl.textContent = "Lvl " + multiplierLevel;
+      }
+      if (score < cost) {
+        multiplierBtn.classList.add("sold-out");
+      } else {
+        multiplierBtn.classList.remove("sold-out");
+      }
+    }
+
+    multiplierBtn.addEventListener("click", () => {
+      const cost = getMultiplierCost();
+      if (score >= cost) {
+        score -= cost;
+        multiplierLevel++;
+        multiplier *= 2;
+        scoreEl.textContent = score;
+        updateStore();
+      }
+    });
 
     function createCookie(startX, startY) {
       const el = document.createElement("div");
@@ -110,8 +227,9 @@
 
       el.addEventListener("click", (e) => {
         e.stopPropagation();
-        score++;
+        score += multiplier;
         scoreEl.textContent = score;
+        updateStore();
 
         // Speed up all cookies slightly every 5 clicks
         if (score % 5 === 0) {
@@ -130,7 +248,7 @@
         // Float +1 text
         const floater = document.createElement("div");
         floater.className = "float-text";
-        floater.textContent = "+1";
+        floater.textContent = "+" + multiplier;
         const gaRect = gameArea.getBoundingClientRect();
         floater.style.left = (e.clientX - gaRect.left) + "px";
         floater.style.top = (e.clientY - gaRect.top) + "px";
