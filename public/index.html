@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Cookie Clicker</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -13,10 +13,15 @@
       font-family: 'Segoe UI', sans-serif;
       overflow: hidden;
       height: 100vh;
+      height: 100dvh;
       display: flex;
       flex-direction: column;
       align-items: center;
       user-select: none;
+      touch-action: manipulation;
+      -webkit-touch-callout: none;
+      -webkit-tap-highlight-color: transparent;
+      overscroll-behavior: none;
     }
 
     #score-board {
@@ -46,6 +51,7 @@
       cursor: pointer;
       transition: transform 0.05s;
       filter: drop-shadow(0 0 15px rgba(255, 200, 100, 0.5));
+      touch-action: none;
     }
 
     .cookie:hover {
@@ -196,6 +202,89 @@
       80% { opacity: 1; }
       100% { opacity: 0; }
     }
+
+    #store-toggle {
+      display: none;
+      position: fixed;
+      bottom: 10px;
+      right: 10px;
+      z-index: 30;
+      background: #f5a623;
+      color: #1a1a2e;
+      border: none;
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      font-size: 24px;
+      font-weight: bold;
+      cursor: pointer;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.4);
+    }
+
+    @media (max-width: 600px) {
+      #score-board {
+        margin-top: 15px;
+        font-size: 32px;
+      }
+
+      #multiplier-display {
+        font-size: 14px;
+      }
+
+      #badge {
+        font-size: 12px;
+        padding: 4px 10px;
+      }
+
+      #game-area {
+        width: 100%;
+      }
+
+      .cookie {
+        width: 80px;
+        height: 80px;
+        font-size: 64px;
+        line-height: 80px;
+      }
+
+      #instructions {
+        bottom: 70px;
+        font-size: 12px;
+      }
+
+      #store {
+        top: auto;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        width: 100%;
+        height: auto;
+        max-height: 45vh;
+        border-left: none;
+        border-top: 2px solid #333;
+        border-radius: 16px 16px 0 0;
+        padding: 15px;
+        transform: translateY(100%);
+        transition: transform 0.3s ease;
+      }
+
+      #store.open {
+        transform: translateY(0);
+      }
+
+      #store-toggle {
+        display: block;
+      }
+
+      #store.open ~ #store-toggle {
+        bottom: auto;
+      }
+
+      #graduation-banner {
+        left: 50%;
+        font-size: 28px;
+      }
+    }
   </style>
 </head>
 <body>
@@ -207,6 +296,7 @@
   </div>
   <div id="instructions">Click the cookie before it moves!</div>
 
+  <button id="store-toggle">Shop</button>
   <div id="store">
     <h2>Store</h2>
     <div class="store-item" id="buy-multiplier">
@@ -336,10 +426,15 @@
       cookies.push(cookie);
     }
 
+    function getCookieSize() {
+      return window.innerWidth <= 600 ? 80 : 100;
+    }
+
     function gameLoop() {
       const rect = gameArea.getBoundingClientRect();
-      const maxX = rect.width - 100;
-      const maxY = rect.height - 100;
+      const size = getCookieSize();
+      const maxX = rect.width - size;
+      const maxY = rect.height - size;
 
       for (const c of cookies) {
         c.x += c.vx;
@@ -354,6 +449,20 @@
 
       requestAnimationFrame(gameLoop);
     }
+
+    // Store toggle for mobile
+    const storeEl = document.getElementById("store");
+    const storeToggle = document.getElementById("store-toggle");
+    storeToggle.addEventListener("click", () => {
+      storeEl.classList.toggle("open");
+      storeToggle.textContent = storeEl.classList.contains("open") ? "X" : "Shop";
+    });
+
+    // Prevent pull-to-refresh and bounce on mobile
+    document.addEventListener("touchmove", (e) => {
+      if (e.target.closest("#store")) return;
+      e.preventDefault();
+    }, { passive: false });
 
     // Start with one cookie in the center
     const initRect = gameArea.getBoundingClientRect();
