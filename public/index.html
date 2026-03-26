@@ -288,7 +288,7 @@
   </style>
 </head>
 <body>
-  <div id="score-board"><span id="item-label">Cookies</span>: <span id="score">1</span></div>
+  <div id="score-board">Score: <span id="score">1</span></div>
   <div id="multiplier-display">x1 multiplier</div>
   <div id="badge">Pizza Master</div>
   <div id="graduation-banner">You graduated to Pizza!</div>
@@ -315,7 +315,6 @@
     let multiplierLevel = 0;
     let graduated = false;
     const cookies = [];
-    const itemLabel = document.getElementById("item-label");
     const badge = document.getElementById("badge");
     const banner = document.getElementById("graduation-banner");
 
@@ -371,7 +370,6 @@
     function checkGraduation() {
       if (!graduated && totalEarned >= 100) {
         graduated = true;
-        itemLabel.textContent = "Pizzas";
         document.title = "Pizza Clicker";
         badge.classList.add("visible");
         banner.style.display = "block";
