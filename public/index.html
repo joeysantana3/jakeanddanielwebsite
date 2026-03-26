@@ -288,7 +288,7 @@
   </style>
 </head>
 <body>
-  <div id="score-board"><span id="item-label">Cookies</span>: <span id="score">0</span></div>
+  <div id="score-board"><span id="item-label">Cookies</span>: <span id="score">1</span></div>
   <div id="multiplier-display">x1 multiplier</div>
   <div id="badge">Pizza Master</div>
   <div id="graduation-banner">You graduated to Pizza!</div>
@@ -309,8 +309,8 @@
   <script>
     const scoreEl = document.getElementById("score");
     const gameArea = document.getElementById("game-area");
-    let score = 0;
-    let totalEarned = 0;
+    let score = 1;
+    let totalEarned = 1;
     let multiplier = 1;
     let multiplierLevel = 0;
     let graduated = false;
@@ -433,8 +433,7 @@
         gameArea.appendChild(floater);
         setTimeout(() => floater.remove(), 800);
 
-        // Spawn 2 new cookies from the clicked position
-        createCookie(cookie.x, cookie.y);
+        // Spawn 1 new cookie from the clicked position
         createCookie(cookie.x, cookie.y);
       });
 
