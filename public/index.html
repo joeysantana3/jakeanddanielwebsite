@@ -342,6 +342,20 @@
       }
     }
 
+    function removeCookies(count) {
+      const toRemove = Math.min(count, cookies.length);
+      for (let i = 0; i < toRemove; i++) {
+        const c = cookies.pop();
+        c.el.remove();
+      }
+      // Always keep at least one on screen
+      if (cookies.length === 0) {
+        const rect = gameArea.getBoundingClientRect();
+        const size = getCookieSize();
+        createCookie(rect.width / 2 - size / 2, rect.height / 2 - size / 2);
+      }
+    }
+
     multiplierBtn.addEventListener("click", () => {
       const cost = getMultiplierCost();
       if (score >= cost) {
@@ -349,6 +363,7 @@
         multiplierLevel++;
         multiplier *= 2;
         scoreEl.textContent = score;
+        removeCookies(cost);
         updateStore();
       }
     });
