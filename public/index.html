@@ -24,8 +24,38 @@
       overscroll-behavior: none;
     }
 
+    /* Mode tabs */
+    #mode-tabs {
+      display: flex;
+      gap: 0;
+      margin-top: 15px;
+      border-radius: 10px;
+      overflow: hidden;
+      border: 2px solid #444;
+    }
+
+    .mode-tab {
+      padding: 10px 20px;
+      font-size: 16px;
+      font-weight: bold;
+      background: #2a2a4a;
+      color: #888;
+      border: none;
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    .mode-tab.active {
+      background: #f5a623;
+      color: #1a1a2e;
+    }
+
+    .mode-tab:not(.active):hover {
+      background: #3a3a5a;
+    }
+
     #score-board {
-      margin-top: 40px;
+      margin-top: 10px;
       font-size: 48px;
       font-weight: bold;
       text-shadow: 0 0 20px rgba(255, 200, 100, 0.6);
@@ -221,13 +251,131 @@
       box-shadow: 0 2px 10px rgba(0,0,0,0.4);
     }
 
+    /* Cookie Protector styles */
+    #protector-area {
+      display: none;
+      position: relative;
+      width: calc(100% - 220px);
+      flex: 1;
+    }
+
+    #protector-cookie {
+      position: absolute;
+      right: 40px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 80px;
+      filter: drop-shadow(0 0 20px rgba(255, 200, 100, 0.6));
+    }
+
+    #protector-stats {
+      font-size: 16px;
+      color: #aaa;
+      text-align: center;
+      margin-top: 5px;
+    }
+
+    .zombie {
+      position: absolute;
+      width: 60px;
+      height: 60px;
+      font-size: 50px;
+      line-height: 60px;
+      text-align: center;
+      cursor: pointer;
+      touch-action: none;
+      transition: transform 0.05s;
+    }
+
+    .zombie:active {
+      transform: scale(0.8);
+    }
+
+    .zombie-splat {
+      position: absolute;
+      font-size: 40px;
+      pointer-events: none;
+      animation: splatFade 0.6s ease-out forwards;
+    }
+
+    @keyframes splatFade {
+      0% { opacity: 1; transform: scale(1); }
+      100% { opacity: 0; transform: scale(1.5); }
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: translateY(-50%) translateX(0); }
+      25% { transform: translateY(-50%) translateX(-10px); }
+      50% { transform: translateY(-50%) translateX(10px); }
+      75% { transform: translateY(-50%) translateX(-5px); }
+    }
+
+    #game-over-banner {
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: calc((100% - 220px) / 2);
+      transform: translate(-50%, -50%);
+      font-size: 42px;
+      font-weight: bold;
+      color: #e44d26;
+      text-align: center;
+      z-index: 20;
+      text-shadow: 0 0 30px rgba(228, 77, 38, 0.8);
+    }
+
+    #game-over-banner .subtitle {
+      font-size: 20px;
+      color: #aaa;
+      margin-top: 10px;
+    }
+
+    #protector-instructions {
+      position: absolute;
+      bottom: 30px;
+      width: 100%;
+      text-align: center;
+      color: #666;
+      font-size: 14px;
+    }
+
+    /* Protector health bar */
+    #health-bar-container {
+      position: absolute;
+      right: 30px;
+      top: 50%;
+      transform: translateY(60px);
+      width: 120px;
+      height: 12px;
+      background: #333;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    #health-bar {
+      height: 100%;
+      width: 100%;
+      background: #4caf50;
+      border-radius: 6px;
+      transition: width 0.3s, background 0.3s;
+    }
+
     @media (max-width: 600px) {
+      #mode-tabs {
+        margin-top: 10px;
+      }
+
+      .mode-tab {
+        padding: 8px 14px;
+        font-size: 13px;
+      }
+
       #score-board {
-        margin-top: 15px;
+        margin-top: 8px;
         font-size: 32px;
       }
 
-      #multiplier-display {
+      #multiplier-display, #protector-stats {
         font-size: 14px;
       }
 
@@ -236,7 +384,7 @@
         padding: 4px 10px;
       }
 
-      #game-area {
+      #game-area, #protector-area {
         width: 100%;
       }
 
@@ -247,7 +395,19 @@
         line-height: 80px;
       }
 
-      #instructions {
+      #protector-cookie {
+        font-size: 64px;
+        right: 20px;
+      }
+
+      .zombie {
+        width: 50px;
+        height: 50px;
+        font-size: 40px;
+        line-height: 50px;
+      }
+
+      #instructions, #protector-instructions {
         bottom: 70px;
         font-size: 12px;
       }
@@ -280,21 +440,48 @@
         bottom: auto;
       }
 
-      #graduation-banner {
+      #graduation-banner, #game-over-banner {
         left: 50%;
         font-size: 28px;
+      }
+
+      #health-bar-container {
+        right: 15px;
+        width: 90px;
       }
     }
   </style>
 </head>
 <body>
+  <div id="mode-tabs">
+    <button class="mode-tab active" data-mode="clicker">Cookie Clicker</button>
+    <button class="mode-tab" data-mode="protector">Cookie Protector</button>
+  </div>
+
   <div id="score-board">Score: <span id="score">1</span></div>
+
+  <!-- Cookie Clicker UI -->
   <div id="multiplier-display">x1 multiplier</div>
   <div id="badge">Pizza Master</div>
   <div id="graduation-banner">You graduated to Pizza!</div>
+
+  <!-- Cookie Protector UI -->
+  <div id="protector-stats" style="display:none">Zombies killed: <span id="kill-count">0</span> | Wave: <span id="wave-num">1</span></div>
+
   <div id="game-area">
   </div>
   <div id="instructions">Click the cookie before it moves!</div>
+
+  <div id="protector-area">
+    <div id="protector-cookie">&#127850;</div>
+    <div id="health-bar-container"><div id="health-bar"></div></div>
+    <div id="protector-instructions">Click the zombies before they eat your cookie!</div>
+  </div>
+
+  <div id="game-over-banner">
+    Game Over!
+    <div class="subtitle">Click "Cookie Protector" to play again</div>
+  </div>
 
   <button id="store-toggle">Shop</button>
   <div id="store">
@@ -307,21 +494,64 @@
   </div>
 
   <script>
+    // ============ SHARED ============
     const scoreEl = document.getElementById("score");
+    let currentMode = "clicker";
+
+    // ============ MODE SWITCHING ============
+    const tabs = document.querySelectorAll(".mode-tab");
     const gameArea = document.getElementById("game-area");
-    let score = 1;
+    const protectorArea = document.getElementById("protector-area");
+    const instructionsEl = document.getElementById("instructions");
+    const multiplierDisplayEl = document.getElementById("multiplier-display");
+    const badgeEl = document.getElementById("badge");
+    const protectorStatsEl = document.getElementById("protector-stats");
+    const storeEl = document.getElementById("store");
+    const storeToggle = document.getElementById("store-toggle");
+    const gameOverBanner = document.getElementById("game-over-banner");
+
+    function switchMode(mode) {
+      currentMode = mode;
+      tabs.forEach(t => t.classList.toggle("active", t.dataset.mode === mode));
+
+      if (mode === "clicker") {
+        gameArea.style.display = "block";
+        protectorArea.style.display = "none";
+        instructionsEl.style.display = "block";
+        multiplierDisplayEl.style.display = "block";
+        if (graduated) badgeEl.style.display = "block";
+        protectorStatsEl.style.display = "none";
+        storeEl.style.display = "flex";
+        gameOverBanner.style.display = "none";
+        scoreEl.textContent = clickerScore;
+        stopProtector();
+      } else {
+        gameArea.style.display = "none";
+        protectorArea.style.display = "block";
+        instructionsEl.style.display = "none";
+        multiplierDisplayEl.style.display = "none";
+        badgeEl.style.display = "none";
+        protectorStatsEl.style.display = "block";
+        storeEl.style.display = "none";
+        gameOverBanner.style.display = "none";
+        startProtector();
+      }
+    }
+
+    tabs.forEach(t => t.addEventListener("click", () => switchMode(t.dataset.mode)));
+
+    // ============ COOKIE CLICKER ============
+    let clickerScore = 1;
     let totalEarned = 1;
     let multiplier = 1;
     let multiplierLevel = 0;
     let graduated = false;
     const cookies = [];
-    const badge = document.getElementById("badge");
     const banner = document.getElementById("graduation-banner");
 
     const multiplierBtn = document.getElementById("buy-multiplier");
     const multiplierCostEl = document.getElementById("multiplier-cost");
     const multiplierOwnedEl = document.getElementById("multiplier-owned");
-    const multiplierDisplay = document.getElementById("multiplier-display");
 
     function getMultiplierCost() {
       return 50 * Math.pow(2, multiplierLevel);
@@ -330,11 +560,11 @@
     function updateStore() {
       const cost = getMultiplierCost();
       multiplierCostEl.textContent = cost + " cookies";
-      multiplierDisplay.textContent = "x" + multiplier + " multiplier";
+      multiplierDisplayEl.textContent = "x" + multiplier + " multiplier";
       if (multiplierLevel > 0) {
         multiplierOwnedEl.textContent = "Lvl " + multiplierLevel;
       }
-      if (score < cost) {
+      if (clickerScore < cost) {
         multiplierBtn.classList.add("sold-out");
       } else {
         multiplierBtn.classList.remove("sold-out");
@@ -347,7 +577,6 @@
         const c = cookies.pop();
         c.el.remove();
       }
-      // Always keep at least one on screen
       if (cookies.length === 0) {
         const rect = gameArea.getBoundingClientRect();
         const size = getCookieSize();
@@ -357,11 +586,11 @@
 
     multiplierBtn.addEventListener("click", () => {
       const cost = getMultiplierCost();
-      if (score >= cost) {
-        score -= cost;
+      if (clickerScore >= cost) {
+        clickerScore -= cost;
         multiplierLevel++;
         multiplier *= 2;
-        scoreEl.textContent = score;
+        scoreEl.textContent = clickerScore;
         removeCookies(cost);
         updateStore();
       }
@@ -371,13 +600,11 @@
       if (!graduated && totalEarned >= 100) {
         graduated = true;
         document.title = "Pizza Clicker";
-        badge.classList.add("visible");
+        badgeEl.classList.add("visible");
         banner.style.display = "block";
         setTimeout(() => banner.style.display = "none", 2500);
-        // Remove all existing cookies
         cookies.forEach(c => c.el.remove());
         cookies.length = 0;
-        // Spawn a single pizza in the center
         const rect = gameArea.getBoundingClientRect();
         createCookie(rect.width / 2 - 50, rect.height / 2 - 50);
       }
@@ -401,27 +628,24 @@
 
       el.addEventListener("click", (e) => {
         e.stopPropagation();
-        score += multiplier;
+        clickerScore += multiplier;
         totalEarned += multiplier;
-        scoreEl.textContent = score;
+        scoreEl.textContent = clickerScore;
         updateStore();
         checkGraduation();
 
-        // Speed up all cookies slightly every 5 clicks
-        if (score % 5 === 0) {
+        if (clickerScore % 5 === 0) {
           cookies.forEach(c => {
             c.vx *= 1.1;
             c.vy *= 1.1;
           });
         }
 
-        // Bounce clicked cookie in a random direction
         const a = Math.random() * Math.PI * 2;
         const spd = Math.sqrt(cookie.vx * cookie.vx + cookie.vy * cookie.vy);
         cookie.vx = Math.cos(a) * spd;
         cookie.vy = Math.sin(a) * spd;
 
-        // Float +1 text
         const floater = document.createElement("div");
         floater.className = "float-text";
         floater.textContent = "+" + multiplier;
@@ -431,7 +655,6 @@
         gameArea.appendChild(floater);
         setTimeout(() => floater.remove(), 800);
 
-        // Spawn 1 new cookie from the clicked position
         createCookie(cookie.x, cookie.y);
       });
 
@@ -442,29 +665,172 @@
       return window.innerWidth <= 600 ? 80 : 100;
     }
 
-    function gameLoop() {
-      const rect = gameArea.getBoundingClientRect();
-      const size = getCookieSize();
-      const maxX = rect.width - size;
-      const maxY = rect.height - size;
+    function clickerLoop() {
+      if (currentMode === "clicker") {
+        const rect = gameArea.getBoundingClientRect();
+        const size = getCookieSize();
+        const maxX = rect.width - size;
+        const maxY = rect.height - size;
 
-      for (const c of cookies) {
-        c.x += c.vx;
-        c.y += c.vy;
+        for (const c of cookies) {
+          c.x += c.vx;
+          c.y += c.vy;
 
-        if (c.x <= 0 || c.x >= maxX) { c.vx *= -1; c.x = Math.max(0, Math.min(c.x, maxX)); }
-        if (c.y <= 0 || c.y >= maxY) { c.vy *= -1; c.y = Math.max(0, Math.min(c.y, maxY)); }
+          if (c.x <= 0 || c.x >= maxX) { c.vx *= -1; c.x = Math.max(0, Math.min(c.x, maxX)); }
+          if (c.y <= 0 || c.y >= maxY) { c.vy *= -1; c.y = Math.max(0, Math.min(c.y, maxY)); }
 
-        c.el.style.left = c.x + "px";
-        c.el.style.top = c.y + "px";
+          c.el.style.left = c.x + "px";
+          c.el.style.top = c.y + "px";
+        }
+      }
+      requestAnimationFrame(clickerLoop);
+    }
+
+    // ============ COOKIE PROTECTOR ============
+    const killCountEl = document.getElementById("kill-count");
+    const waveNumEl = document.getElementById("wave-num");
+    const healthBar = document.getElementById("health-bar");
+    const protectorCookie = document.getElementById("protector-cookie");
+
+    let zombies = [];
+    let protectorRunning = false;
+    let spawnTimer = null;
+    let killCount = 0;
+    let wave = 1;
+    let cookieHealth = 100;
+    let protectorGameOver = false;
+
+    function startProtector() {
+      stopProtector();
+      zombies = [];
+      killCount = 0;
+      wave = 1;
+      cookieHealth = 100;
+      protectorGameOver = false;
+      protectorRunning = true;
+      killCountEl.textContent = 0;
+      waveNumEl.textContent = 1;
+      healthBar.style.width = "100%";
+      healthBar.style.background = "#4caf50";
+      scoreEl.textContent = killCount;
+      protectorCookie.textContent = "\u{1F36A}";
+      protectorArea.querySelectorAll(".zombie, .zombie-splat").forEach(el => el.remove());
+      scheduleSpawn();
+      requestAnimationFrame(protectorLoop);
+    }
+
+    function stopProtector() {
+      protectorRunning = false;
+      if (spawnTimer) { clearTimeout(spawnTimer); spawnTimer = null; }
+    }
+
+    function getSpawnInterval() {
+      return Math.max(400, 1500 - (wave - 1) * 100);
+    }
+
+    function getZombieSpeed() {
+      return 0.8 + wave * 0.2;
+    }
+
+    function scheduleSpawn() {
+      if (!protectorRunning || protectorGameOver) return;
+      spawnTimer = setTimeout(() => {
+        spawnZombie();
+        scheduleSpawn();
+      }, getSpawnInterval());
+    }
+
+    function spawnZombie() {
+      const rect = protectorArea.getBoundingClientRect();
+      const el = document.createElement("div");
+      el.className = "zombie";
+      el.textContent = "\u{1F9DF}";
+      protectorArea.appendChild(el);
+
+      const zombieSize = window.innerWidth <= 600 ? 50 : 60;
+      const y = Math.random() * (rect.height - zombieSize);
+      const zombie = { el, x: -zombieSize, y, speed: getZombieSpeed() };
+
+      el.addEventListener("click", (e) => {
+        e.stopPropagation();
+        killZombie(zombie, e);
+      });
+
+      zombies.push(zombie);
+    }
+
+    function killZombie(zombie, e) {
+      const idx = zombies.indexOf(zombie);
+      if (idx === -1) return;
+      zombies.splice(idx, 1);
+      zombie.el.remove();
+
+      killCount++;
+      killCountEl.textContent = killCount;
+      scoreEl.textContent = killCount;
+
+      // Wave up every 10 kills
+      const newWave = Math.floor(killCount / 10) + 1;
+      if (newWave !== wave) {
+        wave = newWave;
+        waveNumEl.textContent = wave;
       }
 
-      requestAnimationFrame(gameLoop);
+      // Splat effect
+      const splat = document.createElement("div");
+      splat.className = "zombie-splat";
+      splat.textContent = "\u{1F4A5}";
+      const gaRect = protectorArea.getBoundingClientRect();
+      splat.style.left = (e.clientX - gaRect.left) + "px";
+      splat.style.top = (e.clientY - gaRect.top) + "px";
+      protectorArea.appendChild(splat);
+      setTimeout(() => splat.remove(), 600);
+    }
+
+    function protectorLoop() {
+      if (!protectorRunning || protectorGameOver) return;
+
+      const rect = protectorArea.getBoundingClientRect();
+      const cookieLeft = rect.width - (window.innerWidth <= 600 ? 90 : 120);
+
+      for (let i = zombies.length - 1; i >= 0; i--) {
+        const z = zombies[i];
+        z.x += z.speed;
+        z.el.style.left = z.x + "px";
+        z.el.style.top = z.y + "px";
+
+        // Zombie reached the cookie
+        if (z.x >= cookieLeft) {
+          z.el.remove();
+          zombies.splice(i, 1);
+          cookieHealth -= 10;
+          if (cookieHealth < 0) cookieHealth = 0;
+          healthBar.style.width = cookieHealth + "%";
+          if (cookieHealth > 50) healthBar.style.background = "#4caf50";
+          else if (cookieHealth > 25) healthBar.style.background = "#ff9800";
+          else healthBar.style.background = "#e44d26";
+
+          // Shake the cookie
+          protectorCookie.style.animation = "none";
+          protectorCookie.offsetHeight;
+          protectorCookie.style.animation = "shake 0.3s ease";
+
+          if (cookieHealth <= 0) {
+            protectorGameOver = true;
+            stopProtector();
+            // Remove remaining zombies
+            zombies.forEach(zz => zz.el.remove());
+            zombies = [];
+            protectorCookie.textContent = "\u{1F4A8}";
+            gameOverBanner.style.display = "block";
+          }
+        }
+      }
+
+      requestAnimationFrame(protectorLoop);
     }
 
     // Store toggle for mobile
-    const storeEl = document.getElementById("store");
-    const storeToggle = document.getElementById("store-toggle");
     storeToggle.addEventListener("click", () => {
       storeEl.classList.toggle("open");
       storeToggle.textContent = storeEl.classList.contains("open") ? "X" : "Shop";
@@ -476,10 +842,10 @@
       e.preventDefault();
     }, { passive: false });
 
-    // Start with one cookie in the center
+    // Start cookie clicker
     const initRect = gameArea.getBoundingClientRect();
     createCookie(initRect.width / 2 - 50, initRect.height / 2 - 50);
-    gameLoop();
+    clickerLoop();
   </script>
 </body>
 </html>
