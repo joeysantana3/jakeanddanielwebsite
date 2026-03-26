@@ -84,13 +84,8 @@
       touch-action: none;
     }
 
-    .cookie:hover {
-      transform: scale(1.1);
-    }
-
-    .cookie:active {
-      transform: scale(0.9);
-    }
+    .cookie:hover { transform: scale(1.1); }
+    .cookie:active { transform: scale(0.9); }
 
     .float-text {
       position: absolute;
@@ -115,7 +110,8 @@
       font-size: 14px;
     }
 
-    #store {
+    /* Shared store styles */
+    .side-store {
       position: fixed;
       top: 0;
       right: 0;
@@ -128,9 +124,10 @@
       flex-direction: column;
       gap: 12px;
       z-index: 10;
+      overflow-y: auto;
     }
 
-    #store h2 {
+    .side-store h2 {
       font-size: 22px;
       text-align: center;
       color: #f5a623;
@@ -146,14 +143,9 @@
       transition: border-color 0.2s, opacity 0.2s;
     }
 
-    .store-item:hover:not(.sold-out) {
-      border-color: #f5a623;
-    }
-
-    .store-item.sold-out {
-      opacity: 0.4;
-      cursor: default;
-    }
+    .store-item:hover:not(.sold-out) { border-color: #f5a623; }
+    .store-item.sold-out { opacity: 0.4; cursor: default; }
+    .store-item.selected { border-color: #6f6; box-shadow: 0 0 10px rgba(100, 255, 100, 0.3); }
 
     .store-item .item-name {
       font-size: 16px;
@@ -201,9 +193,7 @@
       animation: badgePulse 2s ease-in-out infinite;
     }
 
-    #badge.visible {
-      display: block;
-    }
+    #badge.visible { display: block; }
 
     @keyframes badgePulse {
       0%, 100% { box-shadow: 0 0 15px rgba(229, 77, 38, 0.5); }
@@ -266,6 +256,7 @@
       transform: translateY(-50%);
       font-size: 80px;
       filter: drop-shadow(0 0 20px rgba(255, 200, 100, 0.6));
+      z-index: 5;
     }
 
     #protector-stats {
@@ -285,17 +276,17 @@
       cursor: pointer;
       touch-action: none;
       transition: transform 0.05s;
+      z-index: 3;
     }
 
-    .zombie:active {
-      transform: scale(0.8);
-    }
+    .zombie:active { transform: scale(0.8); }
 
     .zombie-splat {
       position: absolute;
       font-size: 40px;
       pointer-events: none;
       animation: splatFade 0.6s ease-out forwards;
+      z-index: 4;
     }
 
     @keyframes splatFade {
@@ -337,9 +328,9 @@
       text-align: center;
       color: #666;
       font-size: 14px;
+      z-index: 1;
     }
 
-    /* Protector health bar */
     #health-bar-container {
       position: absolute;
       right: 30px;
@@ -350,6 +341,7 @@
       background: #333;
       border-radius: 6px;
       overflow: hidden;
+      z-index: 5;
     }
 
     #health-bar {
@@ -360,59 +352,106 @@
       transition: width 0.3s, background 0.3s;
     }
 
+    /* Fence styles */
+    .fence {
+      position: absolute;
+      pointer-events: none;
+      z-index: 2;
+    }
+
+    .fence-straight {
+      width: 12px;
+      height: 100px;
+      background: repeating-linear-gradient(
+        0deg,
+        #8B4513 0px,
+        #8B4513 8px,
+        #A0522D 8px,
+        #A0522D 12px,
+        #8B4513 12px,
+        #8B4513 20px
+      );
+      border: 2px solid #6B3410;
+      border-radius: 3px;
+      box-shadow: 0 0 8px rgba(139, 69, 19, 0.5);
+    }
+
+    .fence-angled-down {
+      width: 120px;
+      height: 12px;
+      transform-origin: left center;
+      transform: rotate(30deg);
+      background: repeating-linear-gradient(
+        90deg,
+        #556B2F 0px,
+        #556B2F 8px,
+        #6B8E23 8px,
+        #6B8E23 12px,
+        #556B2F 12px,
+        #556B2F 20px
+      );
+      border: 2px solid #3B4B1F;
+      border-radius: 3px;
+      box-shadow: 0 0 8px rgba(85, 107, 47, 0.5);
+    }
+
+    .fence-angled-up {
+      width: 120px;
+      height: 12px;
+      transform-origin: left center;
+      transform: rotate(-30deg);
+      background: repeating-linear-gradient(
+        90deg,
+        #556B2F 0px,
+        #556B2F 8px,
+        #6B8E23 8px,
+        #6B8E23 12px,
+        #556B2F 12px,
+        #556B2F 20px
+      );
+      border: 2px solid #3B4B1F;
+      border-radius: 3px;
+      box-shadow: 0 0 8px rgba(85, 107, 47, 0.5);
+    }
+
+    /* Placement preview */
+    .fence-preview {
+      opacity: 0.5;
+      position: absolute;
+      pointer-events: none;
+      z-index: 6;
+    }
+
+    #placing-hint {
+      display: none;
+      position: fixed;
+      top: 50%;
+      left: calc((100% - 220px) / 2);
+      transform: translate(-50%, -50%);
+      font-size: 20px;
+      color: #6f6;
+      text-align: center;
+      z-index: 15;
+      pointer-events: none;
+      text-shadow: 0 0 10px rgba(100, 255, 100, 0.5);
+    }
+
     @media (max-width: 600px) {
-      #mode-tabs {
-        margin-top: 10px;
-      }
+      #mode-tabs { margin-top: 10px; }
+      .mode-tab { padding: 8px 14px; font-size: 13px; }
+      #score-board { margin-top: 8px; font-size: 32px; }
+      #multiplier-display, #protector-stats { font-size: 14px; }
+      #badge { font-size: 12px; padding: 4px 10px; }
 
-      .mode-tab {
-        padding: 8px 14px;
-        font-size: 13px;
-      }
+      #game-area, #protector-area { width: 100%; }
 
-      #score-board {
-        margin-top: 8px;
-        font-size: 32px;
-      }
+      .cookie { width: 80px; height: 80px; font-size: 64px; line-height: 80px; }
+      #protector-cookie { font-size: 64px; right: 20px; }
+      .zombie { width: 50px; height: 50px; font-size: 40px; line-height: 50px; }
 
-      #multiplier-display, #protector-stats {
-        font-size: 14px;
-      }
+      #instructions, #protector-instructions { bottom: 70px; font-size: 12px; }
 
-      #badge {
-        font-size: 12px;
-        padding: 4px 10px;
-      }
-
-      #game-area, #protector-area {
-        width: 100%;
-      }
-
-      .cookie {
-        width: 80px;
-        height: 80px;
-        font-size: 64px;
-        line-height: 80px;
-      }
-
-      #protector-cookie {
-        font-size: 64px;
-        right: 20px;
-      }
-
-      .zombie {
-        width: 50px;
-        height: 50px;
-        font-size: 40px;
-        line-height: 50px;
-      }
-
-      #instructions, #protector-instructions {
-        bottom: 70px;
-        font-size: 12px;
-      }
-
-      #store {
+      .side-store {
         top: auto;
         bottom: 0;
         left: 0;
@@ -428,27 +467,17 @@
         transition: transform 0.3s ease;
       }
 
-      #store.open {
-        transform: translateY(0);
-      }
+      .side-store.open { transform: translateY(0); }
 
-      #store-toggle {
-        display: block;
-      }
+      #store-toggle { display: block; }
+      .side-store.open ~ #store-toggle { bottom: auto; }
 
-      #store.open ~ #store-toggle {
-        bottom: auto;
-      }
+      #graduation-banner, #game-over-banner { left: 50%; font-size: 28px; }
+      #health-bar-container { right: 15px; width: 90px; }
+      #placing-hint { font-size: 16px; left: 50%; }
 
-      #graduation-banner, #game-over-banner {
-        left: 50%;
-        font-size: 28px;
-      }
-
-      #health-bar-container {
-        right: 15px;
-        width: 90px;
-      }
+      .fence-straight { height: 70px; }
+      .fence-angled-down, .fence-angled-up { width: 90px; }
     }
   </style>
 </head>
@@ -466,10 +495,9 @@
   <div id="graduation-banner">You graduated to Pizza!</div>
 
   <!-- Cookie Protector UI -->
-  <div id="protector-stats" style="display:none">Zombies killed: <span id="kill-count">0</span> | Wave: <span id="wave-num">1</span></div>
+  <div id="protector-stats" style="display:none">Kills: <span id="kill-count">0</span> | Wave: <span id="wave-num">1</span></div>
 
-  <div id="game-area">
-  </div>
+  <div id="game-area"></div>
   <div id="instructions">Click the cookie before it moves!</div>
 
   <div id="protector-area">
@@ -483,13 +511,37 @@
     <div class="subtitle">Click "Cookie Protector" to play again</div>
   </div>
 
+  <div id="placing-hint">Click the field to place your fence</div>
+
   <button id="store-toggle">Shop</button>
-  <div id="store">
+
+  <!-- Cookie Clicker Store -->
+  <div id="store" class="side-store">
     <h2>Store</h2>
     <div class="store-item" id="buy-multiplier">
       <div class="item-name">2x Multiplier</div>
       <div class="item-desc">Every click earns double points. Stacks!</div>
       <div><span class="item-cost" id="multiplier-cost">50 cookies</span><span class="item-owned" id="multiplier-owned"></span></div>
+    </div>
+  </div>
+
+  <!-- Protector Store -->
+  <div id="protector-store" class="side-store" style="display:none">
+    <h2>Defenses</h2>
+    <div class="store-item" id="buy-straight-fence">
+      <div class="item-name">Straight Fence</div>
+      <div class="item-desc">Blocks zombie paths. They slow down and go around it.</div>
+      <div><span class="item-cost"><span id="straight-fence-cost">10</span> kills</span><span class="item-owned" id="straight-fence-owned"></span></div>
+    </div>
+    <div class="store-item" id="buy-angled-fence-down">
+      <div class="item-name">Angled Fence &#8600;</div>
+      <div class="item-desc">Funnels zombies downward into a kill zone.</div>
+      <div><span class="item-cost"><span id="angled-down-cost">15</span> kills</span><span class="item-owned" id="angled-down-owned"></span></div>
+    </div>
+    <div class="store-item" id="buy-angled-fence-up">
+      <div class="item-name">Angled Fence &#8599;</div>
+      <div class="item-desc">Funnels zombies upward into a kill zone.</div>
+      <div><span class="item-cost"><span id="angled-up-cost">15</span> kills</span><span class="item-owned" id="angled-up-owned"></span></div>
     </div>
   </div>
 
@@ -507,12 +559,15 @@
     const badgeEl = document.getElementById("badge");
     const protectorStatsEl = document.getElementById("protector-stats");
     const storeEl = document.getElementById("store");
+    const protectorStoreEl = document.getElementById("protector-store");
     const storeToggle = document.getElementById("store-toggle");
     const gameOverBanner = document.getElementById("game-over-banner");
+    const placingHint = document.getElementById("placing-hint");
 
     function switchMode(mode) {
       currentMode = mode;
       tabs.forEach(t => t.classList.toggle("active", t.dataset.mode === mode));
+      cancelPlacement();
 
       if (mode === "clicker") {
         gameArea.style.display = "block";
@@ -522,6 +577,7 @@
         if (graduated) badgeEl.style.display = "block";
         protectorStatsEl.style.display = "none";
         storeEl.style.display = "flex";
+        protectorStoreEl.style.display = "none";
         gameOverBanner.style.display = "none";
         scoreEl.textContent = clickerScore;
         stopProtector();
@@ -533,6 +589,7 @@
         badgeEl.style.display = "none";
         protectorStatsEl.style.display = "block";
         storeEl.style.display = "none";
+        protectorStoreEl.style.display = "flex";
         gameOverBanner.style.display = "none";
         startProtector();
       }
@@ -618,13 +675,7 @@
 
       const angle = Math.random() * Math.PI * 2;
       const baseSpeed = 2 + Math.random() * 2;
-      const cookie = {
-        el,
-        x: startX,
-        y: startY,
-        vx: Math.cos(angle) * baseSpeed,
-        vy: Math.sin(angle) * baseSpeed,
-      };
+      const cookie = { el, x: startX, y: startY, vx: Math.cos(angle) * baseSpeed, vy: Math.sin(angle) * baseSpeed };
 
       el.addEventListener("click", (e) => {
         e.stopPropagation();
@@ -635,10 +686,7 @@
         checkGraduation();
 
         if (clickerScore % 5 === 0) {
-          cookies.forEach(c => {
-            c.vx *= 1.1;
-            c.vy *= 1.1;
-          });
+          cookies.forEach(c => { c.vx *= 1.1; c.vy *= 1.1; });
         }
 
         const a = Math.random() * Math.PI * 2;
@@ -675,10 +723,8 @@
         for (const c of cookies) {
           c.x += c.vx;
           c.y += c.vy;
-
           if (c.x <= 0 || c.x >= maxX) { c.vx *= -1; c.x = Math.max(0, Math.min(c.x, maxX)); }
           if (c.y <= 0 || c.y >= maxY) { c.vy *= -1; c.y = Math.max(0, Math.min(c.y, maxY)); }
-
           c.el.style.left = c.x + "px";
           c.el.style.top = c.y + "px";
         }
@@ -693,28 +739,54 @@
     const protectorCookie = document.getElementById("protector-cookie");
 
     let zombies = [];
+    let fences = [];
     let protectorRunning = false;
     let spawnTimer = null;
     let killCount = 0;
+    let spendableKills = 0;
     let wave = 1;
     let cookieHealth = 100;
     let protectorGameOver = false;
 
+    // Fence costs
+    const STRAIGHT_FENCE_COST = 10;
+    const ANGLED_FENCE_COST = 15;
+    let straightFenceCount = 0;
+    let angledDownCount = 0;
+    let angledUpCount = 0;
+
+    // Placement state
+    let placingType = null; // "straight", "angled-down", "angled-up"
+    let previewEl = null;
+
     function startProtector() {
       stopProtector();
       zombies = [];
-      killCount = 0;
-      wave = 1;
-      cookieHealth = 100;
+      // Remove old zombie/splat elements but keep fences
+      protectorArea.querySelectorAll(".zombie, .zombie-splat").forEach(el => el.remove());
+
+      // Only full reset if game was over
+      if (protectorGameOver || killCount === 0) {
+        fences.forEach(f => f.el.remove());
+        fences = [];
+        killCount = 0;
+        spendableKills = 0;
+        wave = 1;
+        cookieHealth = 100;
+        straightFenceCount = 0;
+        angledDownCount = 0;
+        angledUpCount = 0;
+      }
+
       protectorGameOver = false;
       protectorRunning = true;
-      killCountEl.textContent = 0;
-      waveNumEl.textContent = 1;
-      healthBar.style.width = "100%";
+      killCountEl.textContent = killCount;
+      waveNumEl.textContent = wave;
+      healthBar.style.width = cookieHealth + "%";
       healthBar.style.background = "#4caf50";
       scoreEl.textContent = killCount;
       protectorCookie.textContent = "\u{1F36A}";
-      protectorArea.querySelectorAll(".zombie, .zombie-splat").forEach(el => el.remove());
+      updateProtectorStore();
       scheduleSpawn();
       requestAnimationFrame(protectorLoop);
     }
@@ -749,7 +821,7 @@
 
       const zombieSize = window.innerWidth <= 600 ? 50 : 60;
       const y = Math.random() * (rect.height - zombieSize);
-      const zombie = { el, x: -zombieSize, y, speed: getZombieSpeed() };
+      const zombie = { el, x: -zombieSize, y, speed: getZombieSpeed(), baseSpeed: getZombieSpeed(), slowed: 0 };
 
       el.addEventListener("click", (e) => {
         e.stopPropagation();
@@ -766,17 +838,17 @@
       zombie.el.remove();
 
       killCount++;
+      spendableKills++;
       killCountEl.textContent = killCount;
       scoreEl.textContent = killCount;
+      updateProtectorStore();
 
-      // Wave up every 10 kills
       const newWave = Math.floor(killCount / 10) + 1;
       if (newWave !== wave) {
         wave = newWave;
         waveNumEl.textContent = wave;
       }
 
-      // Splat effect
       const splat = document.createElement("div");
       splat.className = "zombie-splat";
       splat.textContent = "\u{1F4A5}";
@@ -787,15 +859,104 @@
       setTimeout(() => splat.remove(), 600);
     }
 
+    // ============ FENCE COLLISION ============
+    function getFenceRect(fence) {
+      const isMobile = window.innerWidth <= 600;
+      if (fence.type === "straight") {
+        const w = 12;
+        const h = isMobile ? 70 : 100;
+        return { x: fence.x, y: fence.y, w, h };
+      }
+      // For angled fences, we use a series of small rectangles along the angle
+      return null;
+    }
+
+    function getAngledSegments(fence) {
+      const isMobile = window.innerWidth <= 600;
+      const len = isMobile ? 90 : 120;
+      const angleRad = fence.type === "angled-down" ? (30 * Math.PI / 180) : (-30 * Math.PI / 180);
+      const segments = [];
+      const steps = 6;
+      const segLen = len / steps;
+      for (let i = 0; i < steps; i++) {
+        const sx = fence.x + Math.cos(angleRad) * segLen * i;
+        const sy = fence.y + Math.sin(angleRad) * segLen * i;
+        segments.push({ x: sx, y: sy, w: segLen, h: 20 });
+      }
+      return segments;
+    }
+
+    function boxOverlap(ax, ay, aw, ah, bx, by, bw, bh) {
+      return ax < bx + bw && ax + aw > bx && ay < by + bh && ay + ah > by;
+    }
+
+    function handleFenceCollisions(z) {
+      const zombieSize = window.innerWidth <= 600 ? 50 : 60;
+      let deflected = false;
+
+      for (const fence of fences) {
+        if (fence.type === "straight") {
+          const fr = getFenceRect(fence);
+          if (boxOverlap(z.x, z.y, zombieSize, zombieSize, fr.x, fr.y, fr.w, fr.h)) {
+            // Push zombie back and slow it
+            z.x = fr.x - zombieSize;
+            z.slowed = 30; // frames of slow
+            // Nudge up or down to go around
+            const fenceMidY = fr.y + fr.h / 2;
+            const zombieMidY = z.y + zombieSize / 2;
+            if (zombieMidY < fenceMidY) {
+              z.y -= z.baseSpeed * 1.5;
+            } else {
+              z.y += z.baseSpeed * 1.5;
+            }
+            deflected = true;
+          }
+        } else {
+          // Angled fence segments
+          const segs = getAngledSegments(fence);
+          for (const seg of segs) {
+            if (boxOverlap(z.x, z.y, zombieSize, zombieSize, seg.x, seg.y, seg.w, seg.h)) {
+              z.x = seg.x - zombieSize;
+              z.slowed = 20;
+              // Funnel direction based on fence type
+              if (fence.type === "angled-down") {
+                z.y += z.baseSpeed * 2.5;
+              } else {
+                z.y -= z.baseSpeed * 2.5;
+              }
+              deflected = true;
+              break;
+            }
+          }
+        }
+      }
+      return deflected;
+    }
+
     function protectorLoop() {
       if (!protectorRunning || protectorGameOver) return;
 
       const rect = protectorArea.getBoundingClientRect();
       const cookieLeft = rect.width - (window.innerWidth <= 600 ? 90 : 120);
+      const zombieSize = window.innerWidth <= 600 ? 50 : 60;
+      const maxY = rect.height - zombieSize;
 
       for (let i = zombies.length - 1; i >= 0; i--) {
         const z = zombies[i];
-        z.x += z.speed;
+
+        // Apply speed (slowed or normal)
+        const currentSpeed = z.slowed > 0 ? z.baseSpeed * 0.3 : z.baseSpeed;
+        if (z.slowed > 0) z.slowed--;
+
+        z.x += currentSpeed;
+
+        // Fence collisions
+        handleFenceCollisions(z);
+
+        // Keep in bounds vertically
+        if (z.y < 0) z.y = 0;
+        if (z.y > maxY) z.y = maxY;
+
         z.el.style.left = z.x + "px";
         z.el.style.top = z.y + "px";
 
@@ -810,7 +971,6 @@
           else if (cookieHealth > 25) healthBar.style.background = "#ff9800";
           else healthBar.style.background = "#e44d26";
 
-          // Shake the cookie
           protectorCookie.style.animation = "none";
           protectorCookie.offsetHeight;
           protectorCookie.style.animation = "shake 0.3s ease";
@@ -818,7 +978,6 @@
           if (cookieHealth <= 0) {
             protectorGameOver = true;
             stopProtector();
-            // Remove remaining zombies
             zombies.forEach(zz => zz.el.remove());
             zombies = [];
             protectorCookie.textContent = "\u{1F4A8}";
@@ -830,15 +989,150 @@
       requestAnimationFrame(protectorLoop);
     }
 
-    // Store toggle for mobile
+    // ============ PROTECTOR STORE & FENCE PLACEMENT ============
+    const buyStraight = document.getElementById("buy-straight-fence");
+    const buyAngledDown = document.getElementById("buy-angled-fence-down");
+    const buyAngledUp = document.getElementById("buy-angled-fence-up");
+    const straightCostEl = document.getElementById("straight-fence-cost");
+    const angledDownCostEl = document.getElementById("angled-down-cost");
+    const angledUpCostEl = document.getElementById("angled-up-cost");
+    const straightOwnedEl = document.getElementById("straight-fence-owned");
+    const angledDownOwnedEl = document.getElementById("angled-down-owned");
+    const angledUpOwnedEl = document.getElementById("angled-up-owned");
+
+    function updateProtectorStore() {
+      const sCost = STRAIGHT_FENCE_COST + straightFenceCount * 5;
+      const adCost = ANGLED_FENCE_COST + angledDownCount * 5;
+      const auCost = ANGLED_FENCE_COST + angledUpCount * 5;
+
+      straightCostEl.textContent = sCost;
+      angledDownCostEl.textContent = adCost;
+      angledUpCostEl.textContent = auCost;
+
+      buyStraight.classList.toggle("sold-out", spendableKills < sCost);
+      buyAngledDown.classList.toggle("sold-out", spendableKills < adCost);
+      buyAngledUp.classList.toggle("sold-out", spendableKills < auCost);
+
+      if (straightFenceCount > 0) straightOwnedEl.textContent = "x" + straightFenceCount;
+      if (angledDownCount > 0) angledDownOwnedEl.textContent = "x" + angledDownCount;
+      if (angledUpCount > 0) angledUpOwnedEl.textContent = "x" + angledUpCount;
+    }
+
+    function cancelPlacement() {
+      placingType = null;
+      if (previewEl) { previewEl.remove(); previewEl = null; }
+      placingHint.style.display = "none";
+      buyStraight.classList.remove("selected");
+      buyAngledDown.classList.remove("selected");
+      buyAngledUp.classList.remove("selected");
+    }
+
+    function startPlacement(type, btn) {
+      if (placingType === type) { cancelPlacement(); return; }
+      cancelPlacement();
+      placingType = type;
+      btn.classList.add("selected");
+      placingHint.style.display = "block";
+
+      // Create preview element
+      previewEl = document.createElement("div");
+      if (type === "straight") previewEl.className = "fence-preview fence-straight";
+      else if (type === "angled-down") previewEl.className = "fence-preview fence-angled-down";
+      else previewEl.className = "fence-preview fence-angled-up";
+      protectorArea.appendChild(previewEl);
+    }
+
+    buyStraight.addEventListener("click", () => {
+      const cost = STRAIGHT_FENCE_COST + straightFenceCount * 5;
+      if (spendableKills >= cost && !protectorGameOver) startPlacement("straight", buyStraight);
+    });
+
+    buyAngledDown.addEventListener("click", () => {
+      const cost = ANGLED_FENCE_COST + angledDownCount * 5;
+      if (spendableKills >= cost && !protectorGameOver) startPlacement("angled-down", buyAngledDown);
+    });
+
+    buyAngledUp.addEventListener("click", () => {
+      const cost = ANGLED_FENCE_COST + angledUpCount * 5;
+      if (spendableKills >= cost && !protectorGameOver) startPlacement("angled-up", buyAngledUp);
+    });
+
+    // Preview follows mouse/touch on protector area
+    protectorArea.addEventListener("mousemove", (e) => {
+      if (!previewEl) return;
+      const rect = protectorArea.getBoundingClientRect();
+      previewEl.style.left = (e.clientX - rect.left) + "px";
+      previewEl.style.top = (e.clientY - rect.top) + "px";
+    });
+
+    protectorArea.addEventListener("touchmove", (e) => {
+      if (!previewEl) return;
+      const touch = e.touches[0];
+      const rect = protectorArea.getBoundingClientRect();
+      previewEl.style.left = (touch.clientX - rect.left) + "px";
+      previewEl.style.top = (touch.clientY - rect.top) + "px";
+    });
+
+    // Place fence on click/tap
+    protectorArea.addEventListener("click", (e) => {
+      if (!placingType || protectorGameOver) return;
+      if (e.target.closest(".zombie")) return;
+
+      const rect = protectorArea.getBoundingClientRect();
+      const fx = e.clientX - rect.left;
+      const fy = e.clientY - rect.top;
+
+      // Don't allow placement too close to the cookie
+      const cookieLeft = rect.width - (window.innerWidth <= 600 ? 90 : 120);
+      if (fx > cookieLeft - 20) return;
+
+      let cost;
+      if (placingType === "straight") {
+        cost = STRAIGHT_FENCE_COST + straightFenceCount * 5;
+      } else if (placingType === "angled-down") {
+        cost = ANGLED_FENCE_COST + angledDownCount * 5;
+      } else {
+        cost = ANGLED_FENCE_COST + angledUpCount * 5;
+      }
+
+      if (spendableKills < cost) return;
+      spendableKills -= cost;
+
+      // Create actual fence
+      const fenceEl = document.createElement("div");
+      fenceEl.className = "fence";
+      if (placingType === "straight") {
+        fenceEl.classList.add("fence-straight");
+        straightFenceCount++;
+      } else if (placingType === "angled-down") {
+        fenceEl.classList.add("fence-angled-down");
+        angledDownCount++;
+      } else {
+        fenceEl.classList.add("fence-angled-up");
+        angledUpCount++;
+      }
+
+      fenceEl.style.left = fx + "px";
+      fenceEl.style.top = fy + "px";
+      protectorArea.appendChild(fenceEl);
+
+      fences.push({ el: fenceEl, x: fx, y: fy, type: placingType });
+
+      scoreEl.textContent = killCount;
+      cancelPlacement();
+      updateProtectorStore();
+    });
+
+    // ============ MOBILE STORE TOGGLE ============
     storeToggle.addEventListener("click", () => {
-      storeEl.classList.toggle("open");
-      storeToggle.textContent = storeEl.classList.contains("open") ? "X" : "Shop";
+      const activeStore = currentMode === "clicker" ? storeEl : protectorStoreEl;
+      activeStore.classList.toggle("open");
+      storeToggle.textContent = activeStore.classList.contains("open") ? "X" : "Shop";
     });
 
     // Prevent pull-to-refresh and bounce on mobile
     document.addEventListener("touchmove", (e) => {
-      if (e.target.closest("#store")) return;
+      if (e.target.closest(".side-store")) return;
       e.preventDefault();
     }, { passive: false });
 
