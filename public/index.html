@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cookie Clicker</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #1a1a2e;
+      color: #fff;
+      font-family: 'Segoe UI', sans-serif;
+      overflow: hidden;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      user-select: none;
+    }
+
+    #score-board {
+      margin-top: 40px;
+      font-size: 48px;
+      font-weight: bold;
+      text-shadow: 0 0 20px rgba(255, 200, 100, 0.6);
+    }
+
+    #score-board span {
+      color: #f5a623;
+    }
+
+    #game-area {
+      position: relative;
+      width: 100%;
+      flex: 1;
+    }
+
+    #cookie {
+      position: absolute;
+      width: 100px;
+      height: 100px;
+      font-size: 80px;
+      line-height: 100px;
+      text-align: center;
+      cursor: pointer;
+      transition: transform 0.05s;
+      filter: drop-shadow(0 0 15px rgba(255, 200, 100, 0.5));
+    }
+
+    #cookie:hover {
+      transform: scale(1.1);
+    }
+
+    #cookie:active {
+      transform: scale(0.9);
+    }
+
+    .float-text {
+      position: absolute;
+      font-size: 24px;
+      font-weight: bold;
+      color: #f5a623;
+      pointer-events: none;
+      animation: floatUp 0.8s ease-out forwards;
+    }
+
+    @keyframes floatUp {
+      0% { opacity: 1; transform: translateY(0); }
+      100% { opacity: 0; transform: translateY(-60px); }
+    }
+
+    #instructions {
+      position: absolute;
+      bottom: 30px;
+      width: 100%;
+      text-align: center;
+      color: #666;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div id="score-board">Cookies: <span id="score">0</span></div>
+  <div id="game-area">
+    <div id="cookie">&#127850;</div>
+  </div>
+  <div id="instructions">Click the cookie before it moves!</div>
+
+  <script>
+    const cookie = document.getElementById("cookie");
+    const scoreEl = document.getElementById("score");
+    const gameArea = document.getElementById("game-area");
+    let score = 0;
+
+    // Movement
+    let x, y;
+    let vx = 2 + Math.random() * 2;
+    let vy = 2 + Math.random() * 2;
+
+    function initPosition() {
+      const rect = gameArea.getBoundingClientRect();
+      x = rect.width / 2 - 50;
+      y = rect.height / 2 - 50;
+    }
+
+    function move() {
+      const rect = gameArea.getBoundingClientRect();
+      const maxX = rect.width - 100;
+      const maxY = rect.height - 100;
+
+      x += vx;
+      y += vy;
+
+      if (x <= 0 || x >= maxX) { vx *= -1; x = Math.max(0, Math.min(x, maxX)); }
+      if (y <= 0 || y >= maxY) { vy *= -1; y = Math.max(0, Math.min(y, maxY)); }
+
+      cookie.style.left = x + "px";
+      cookie.style.top = y + "px";
+
+      requestAnimationFrame(move);
+    }
+
+    // Click handler
+    cookie.addEventListener("click", (e) => {
+      score++;
+      scoreEl.textContent = score;
+
+      // Speed up slightly every 5 clicks
+      if (score % 5 === 0) {
+        const speedMultiplier = 1.1;
+        vx *= speedMultiplier;
+        vy *= speedMultiplier;
+      }
+
+      // Bounce in a random direction on click
+      const angle = Math.random() * Math.PI * 2;
+      const speed = Math.sqrt(vx * vx + vy * vy);
+      vx = Math.cos(angle) * speed;
+      vy = Math.sin(angle) * speed;
+
+      // Float +1 text
+      const floater = document.createElement("div");
+      floater.className = "float-text";
+      floater.textContent = "+1";
+      floater.style.left = (e.clientX - gameArea.getBoundingClientRect().left) + "px";
+      floater.style.top = (e.clientY - gameArea.getBoundingClientRect().top) + "px";
+      gameArea.appendChild(floater);
+      setTimeout(() => floater.remove(), 800);
+    });
+
+    initPosition();
+    move();
+  </script>
+</body>
+</html>
