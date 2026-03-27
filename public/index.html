@@ -436,6 +436,30 @@
       text-shadow: 0 0 10px rgba(100, 255, 100, 0.5);
     }
 
+    /* Turret styles */
+    .turret {
+      position: absolute;
+      width: 40px;
+      height: 40px;
+      font-size: 32px;
+      line-height: 40px;
+      text-align: center;
+      pointer-events: none;
+      z-index: 2;
+      filter: drop-shadow(0 0 6px rgba(100, 150, 255, 0.6));
+    }
+
+    .turret-bullet {
+      position: absolute;
+      width: 8px;
+      height: 8px;
+      background: #ff4444;
+      border-radius: 50%;
+      pointer-events: none;
+      z-index: 3;
+      box-shadow: 0 0 6px rgba(255, 68, 68, 0.8);
+    }
+
     @media (max-width: 600px) {
       #mode-tabs { margin-top: 10px; }
       .mode-tab { padding: 8px 14px; font-size: 13px; }
@@ -542,6 +566,11 @@
       <div class="item-name">Angled Fence &#8599;</div>
       <div class="item-desc">Funnels zombies upward into a kill zone.</div>
       <div><span class="item-cost"><span id="angled-up-cost">15</span> kills</span><span class="item-owned" id="angled-up-owned"></span></div>
+    </div>
+    <div class="store-item" id="buy-turret">
+      <div class="item-name">Turret</div>
+      <div class="item-desc">Auto-fires at the nearest zombie. Slow but steady.</div>
+      <div><span class="item-cost"><span id="turret-cost">25</span> kills</span><span class="item-owned" id="turret-owned"></span></div>
     </div>
   </div>
 
@@ -750,6 +779,8 @@
 
     let zombies = [];
     let fences = [];
+    let turrets = [];
+    let bullets = [];
     let protectorRunning = false;
     let protectorPaused = false;
     let spawnTimer = null;
@@ -762,24 +793,32 @@
     // Fence costs
     const STRAIGHT_FENCE_COST = 10;
     const ANGLED_FENCE_COST = 15;
+    const TURRET_COST = 25;
+    const TURRET_FIRE_INTERVAL = 2000; // ms between shots
+    const TURRET_RANGE = 250;
+    const BULLET_SPEED = 5;
     let straightFenceCount = 0;
     let angledDownCount = 0;
     let angledUpCount = 0;
+    let turretCount = 0;
 
     // Placement state
-    let placingType = null; // "straight", "angled-down", "angled-up"
+    let placingType = null; // "straight", "angled-down", "angled-up", "turret"
     let previewEl = null;
 
     function startProtector() {
       stopProtector();
       zombies = [];
       // Remove old zombie/splat elements but keep fences
-      protectorArea.querySelectorAll(".zombie, .zombie-splat").forEach(el => el.remove());
+      protectorArea.querySelectorAll(".zombie, .zombie-splat, .turret-bullet").forEach(el => el.remove());
+      bullets = [];
 
       // Only full reset if game was over
       if (protectorGameOver || killCount === 0) {
         fences.forEach(f => f.el.remove());
         fences = [];
+        turrets.forEach(t => t.el.remove());
+        turrets = [];
         killCount = 0;
         spendableKills = 0;
         wave = 1;
@@ -787,6 +826,7 @@
         straightFenceCount = 0;
         angledDownCount = 0;
         angledUpCount = 0;
+        turretCount = 0;
       }
 
       protectorGameOver = false;
@@ -999,6 +1039,80 @@
         }
       }
 
+      // Turret firing
+      const now = Date.now();
+      for (const turret of turrets) {
+        if (now - turret.lastFired < TURRET_FIRE_INTERVAL) continue;
+        // Find nearest zombie in range
+        let nearest = null;
+        let nearestDist = Infinity;
+        for (const z of zombies) {
+          const dx = (z.x + zombieSize / 2) - (turret.x + 20);
+          const dy = (z.y + zombieSize / 2) - (turret.y + 20);
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < TURRET_RANGE && dist < nearestDist) {
+            nearest = z;
+            nearestDist = dist;
+          }
+        }
+        if (nearest) {
+          turret.lastFired = now;
+          const dx = (nearest.x + zombieSize / 2) - (turret.x + 20);
+          const dy = (nearest.y + zombieSize / 2) - (turret.y + 20);
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          const bEl = document.createElement("div");
+          bEl.className = "turret-bullet";
+          bEl.style.left = (turret.x + 18) + "px";
+          bEl.style.top = (turret.y + 18) + "px";
+          protectorArea.appendChild(bEl);
+          bullets.push({ el: bEl, x: turret.x + 18, y: turret.y + 18, vx: (dx / dist) * BULLET_SPEED, vy: (dy / dist) * BULLET_SPEED });
+        }
+      }
+
+      // Move bullets and check hits
+      for (let i = bullets.length - 1; i >= 0; i--) {
+        const b = bullets[i];
+        b.x += b.vx;
+        b.y += b.vy;
+        b.el.style.left = b.x + "px";
+        b.el.style.top = b.y + "px";
+
+        // Out of bounds
+        if (b.x < -20 || b.x > rect.width + 20 || b.y < -20 || b.y > rect.height + 20) {
+          b.el.remove();
+          bullets.splice(i, 1);
+          continue;
+        }
+
+        // Hit detection
+        for (let j = zombies.length - 1; j >= 0; j--) {
+          const z = zombies[j];
+          if (b.x >= z.x && b.x <= z.x + zombieSize && b.y >= z.y && b.y <= z.y + zombieSize) {
+            b.el.remove();
+            bullets.splice(i, 1);
+            // Kill the zombie
+            zombies.splice(j, 1);
+            z.el.remove();
+            killCount++;
+            spendableKills++;
+            killCountEl.textContent = killCount;
+            scoreEl.textContent = killCount;
+            const newWave = Math.floor(killCount / 10) + 1;
+            if (newWave !== wave) { wave = newWave; waveNumEl.textContent = wave; }
+            updateProtectorStore();
+            // Mini splat
+            const splat = document.createElement("div");
+            splat.className = "zombie-splat";
+            splat.textContent = "\u{1F4A5}";
+            splat.style.left = z.x + "px";
+            splat.style.top = z.y + "px";
+            protectorArea.appendChild(splat);
+            setTimeout(() => splat.remove(), 600);
+            break;
+          }
+        }
+      }
+
       requestAnimationFrame(protectorLoop);
     }
 
@@ -1006,12 +1120,15 @@
     const buyStraight = document.getElementById("buy-straight-fence");
     const buyAngledDown = document.getElementById("buy-angled-fence-down");
     const buyAngledUp = document.getElementById("buy-angled-fence-up");
+    const buyTurret = document.getElementById("buy-turret");
     const straightCostEl = document.getElementById("straight-fence-cost");
     const angledDownCostEl = document.getElementById("angled-down-cost");
     const angledUpCostEl = document.getElementById("angled-up-cost");
+    const turretCostEl = document.getElementById("turret-cost");
     const straightOwnedEl = document.getElementById("straight-fence-owned");
     const angledDownOwnedEl = document.getElementById("angled-down-owned");
     const angledUpOwnedEl = document.getElementById("angled-up-owned");
+    const turretOwnedEl = document.getElementById("turret-owned");
 
     function updateProtectorStore() {
       const sCost = STRAIGHT_FENCE_COST + straightFenceCount * 5;
@@ -1022,13 +1139,18 @@
       angledDownCostEl.textContent = adCost;
       angledUpCostEl.textContent = auCost;
 
+      const tCost = TURRET_COST + turretCount * 15;
+      turretCostEl.textContent = tCost;
+
       buyStraight.classList.toggle("sold-out", spendableKills < sCost);
       buyAngledDown.classList.toggle("sold-out", spendableKills < adCost);
       buyAngledUp.classList.toggle("sold-out", spendableKills < auCost);
+      buyTurret.classList.toggle("sold-out", spendableKills < tCost);
 
       if (straightFenceCount > 0) straightOwnedEl.textContent = "x" + straightFenceCount;
       if (angledDownCount > 0) angledDownOwnedEl.textContent = "x" + angledDownCount;
       if (angledUpCount > 0) angledUpOwnedEl.textContent = "x" + angledUpCount;
+      if (turretCount > 0) turretOwnedEl.textContent = "x" + turretCount;
     }
 
     function cancelPlacement() {
@@ -1038,6 +1160,7 @@
       buyStraight.classList.remove("selected");
       buyAngledDown.classList.remove("selected");
       buyAngledUp.classList.remove("selected");
+      buyTurret.classList.remove("selected");
     }
 
     function startPlacement(type, btn) {
@@ -1051,7 +1174,8 @@
       previewEl = document.createElement("div");
       if (type === "straight") previewEl.className = "fence-preview fence-straight";
       else if (type === "angled-down") previewEl.className = "fence-preview fence-angled-down";
-      else previewEl.className = "fence-preview fence-angled-up";
+      else if (type === "angled-up") previewEl.className = "fence-preview fence-angled-up";
+      else if (type === "turret") { previewEl.className = "fence-preview turret"; previewEl.textContent = "\u{1F3EF}"; }
       protectorArea.appendChild(previewEl);
     }
 
@@ -1068,6 +1192,11 @@
     buyAngledUp.addEventListener("click", () => {
       const cost = ANGLED_FENCE_COST + angledUpCount * 5;
       if (spendableKills >= cost && !protectorGameOver) startPlacement("angled-up", buyAngledUp);
+    });
+
+    buyTurret.addEventListener("click", () => {
+      const cost = TURRET_COST + turretCount * 15;
+      if (spendableKills >= cost && !protectorGameOver) startPlacement("turret", buyTurret);
     });
 
     // Preview follows mouse/touch on protector area
@@ -1104,32 +1233,45 @@
         cost = STRAIGHT_FENCE_COST + straightFenceCount * 5;
       } else if (placingType === "angled-down") {
         cost = ANGLED_FENCE_COST + angledDownCount * 5;
-      } else {
+      } else if (placingType === "angled-up") {
         cost = ANGLED_FENCE_COST + angledUpCount * 5;
+      } else {
+        cost = TURRET_COST + turretCount * 15;
       }
 
       if (spendableKills < cost) return;
       spendableKills -= cost;
 
-      // Create actual fence
-      const fenceEl = document.createElement("div");
-      fenceEl.className = "fence";
-      if (placingType === "straight") {
-        fenceEl.classList.add("fence-straight");
-        straightFenceCount++;
-      } else if (placingType === "angled-down") {
-        fenceEl.classList.add("fence-angled-down");
-        angledDownCount++;
+      if (placingType === "turret") {
+        const tEl = document.createElement("div");
+        tEl.className = "turret";
+        tEl.textContent = "\u{1F3EF}";
+        tEl.style.left = fx + "px";
+        tEl.style.top = fy + "px";
+        protectorArea.appendChild(tEl);
+        turrets.push({ el: tEl, x: fx, y: fy, lastFired: 0 });
+        turretCount++;
       } else {
-        fenceEl.classList.add("fence-angled-up");
-        angledUpCount++;
+        // Create actual fence
+        const fenceEl = document.createElement("div");
+        fenceEl.className = "fence";
+        if (placingType === "straight") {
+          fenceEl.classList.add("fence-straight");
+          straightFenceCount++;
+        } else if (placingType === "angled-down") {
+          fenceEl.classList.add("fence-angled-down");
+          angledDownCount++;
+        } else {
+          fenceEl.classList.add("fence-angled-up");
+          angledUpCount++;
+        }
+
+        fenceEl.style.left = fx + "px";
+        fenceEl.style.top = fy + "px";
+        protectorArea.appendChild(fenceEl);
+
+        fences.push({ el: fenceEl, x: fx, y: fy, type: placingType });
       }
-
-      fenceEl.style.left = fx + "px";
-      fenceEl.style.top = fy + "px";
-      protectorArea.appendChild(fenceEl);
-
-      fences.push({ el: fenceEl, x: fx, y: fy, type: placingType });
 
       scoreEl.textContent = killCount;
       cancelPlacement();
