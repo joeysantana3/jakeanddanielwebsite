@@ -503,9 +503,121 @@
       .fence-straight { height: 70px; }
       .fence-angled-down, .fence-angled-up { width: 90px; }
     }
+
+    /* Auth UI */
+    #auth-bar {
+      position: fixed;
+      top: 8px;
+      right: 230px;
+      z-index: 20;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    #auth-bar a, #auth-bar button {
+      background: none;
+      border: none;
+      color: #888;
+      cursor: pointer;
+      font-size: 13px;
+      text-decoration: underline;
+    }
+
+    #auth-bar a:hover, #auth-bar button:hover { color: #f5a623; }
+    #auth-bar .username { color: #f5a623; font-weight: bold; }
+
+    #login-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.8);
+      z-index: 100;
+      justify-content: center;
+      align-items: center;
+    }
+
+    #login-overlay.visible { display: flex; }
+
+    #login-box {
+      background: #2a2a4a;
+      padding: 30px;
+      border-radius: 12px;
+      border: 2px solid #444;
+      width: 320px;
+    }
+
+    #login-box h2 {
+      color: #f5a623;
+      margin-bottom: 15px;
+      text-align: center;
+    }
+
+    #login-box input {
+      display: block;
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 10px;
+      border: 1px solid #444;
+      border-radius: 5px;
+      background: #1a1a2e;
+      color: #fff;
+      font-size: 14px;
+    }
+
+    #login-box .btn-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    #login-box button {
+      flex: 1;
+      padding: 10px;
+      border: none;
+      border-radius: 5px;
+      font-weight: bold;
+      cursor: pointer;
+      font-size: 14px;
+    }
+
+    #login-box .btn-login { background: #f5a623; color: #1a1a2e; }
+    #login-box .btn-register { background: #444; color: #fff; }
+    #login-box .btn-close { background: #333; color: #888; margin-top: 8px; width: 100%; }
+    #login-box .error { color: #e44d26; font-size: 13px; margin-bottom: 8px; text-align: center; }
+
+    @media (max-width: 600px) {
+      #auth-bar { right: 10px; top: auto; bottom: 55px; }
+      #login-box { width: 90vw; }
+    }
   </style>
 </head>
 <body>
+  <!-- Auth bar -->
+  <div id="auth-bar">
+    <span id="auth-logged-out"><button onclick="showLogin()">Login</button></span>
+    <span id="auth-logged-in" style="display:none">
+      <span class="username" id="auth-username"></span>
+      <a href="/admin" id="admin-link" style="display:none">Admin</a>
+      <button onclick="doLogout()">Logout</button>
+    </span>
+  </div>
+
+  <!-- Login overlay -->
+  <div id="login-overlay">
+    <div id="login-box">
+      <h2 id="login-title">Login</h2>
+      <div class="error" id="auth-error" style="display:none"></div>
+      <input type="text" id="auth-user" placeholder="Username">
+      <input type="password" id="auth-pass" placeholder="Password">
+      <div class="btn-row">
+        <button class="btn-login" onclick="doLogin()">Login</button>
+        <button class="btn-register" onclick="doRegister()">Register</button>
+      </div>
+      <button class="btn-close" onclick="hideLogin()">Play as Guest</button>
+    </div>
+  </div>
+
   <div id="mode-tabs">
     <button class="mode-tab active" data-mode="clicker">Cookie Clicker</button>
     <button class="mode-tab" data-mode="protector">Cookie Protector</button>
@@ -1302,6 +1414,128 @@
       if (e.target.closest(".side-store")) return;
       e.preventDefault();
     }, { passive: false });
+
+    // ============ AUTH & PERSISTENCE ============
+    let isLoggedIn = false;
+    let saveTimer = null;
+
+    function showLogin() {
+      document.getElementById("login-overlay").classList.add("visible");
+      document.getElementById("auth-error").style.display = "none";
+    }
+
+    function hideLogin() {
+      document.getElementById("login-overlay").classList.remove("visible");
+    }
+
+    // Expose to onclick
+    window.showLogin = showLogin;
+    window.hideLogin = hideLogin;
+
+    async function doLogin() {
+      const user = document.getElementById("auth-user").value;
+      const pass = document.getElementById("auth-pass").value;
+      const errEl = document.getElementById("auth-error");
+      errEl.style.display = "none";
+
+      const res = await fetch("/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: user, password: pass }),
+      });
+      const data = await res.json();
+      if (!res.ok) { errEl.textContent = data.error; errEl.style.display = "block"; return; }
+      onAuthSuccess(data.username, data.isAdmin);
+    }
+    window.doLogin = doLogin;
+
+    async function doRegister() {
+      const user = document.getElementById("auth-user").value;
+      const pass = document.getElementById("auth-pass").value;
+      const errEl = document.getElementById("auth-error");
+      errEl.style.display = "none";
+
+      const res = await fetch("/api/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: user, password: pass }),
+      });
+      const data = await res.json();
+      if (!res.ok) { errEl.textContent = data.error; errEl.style.display = "block"; return; }
+      onAuthSuccess(data.username, false);
+    }
+    window.doRegister = doRegister;
+
+    async function doLogout() {
+      await saveScores();
+      await fetch("/api/logout", { method: "POST" });
+      isLoggedIn = false;
+      document.getElementById("auth-logged-in").style.display = "none";
+      document.getElementById("auth-logged-out").style.display = "";
+      if (saveTimer) { clearInterval(saveTimer); saveTimer = null; }
+    }
+    window.doLogout = doLogout;
+
+    async function onAuthSuccess(username, isAdmin) {
+      isLoggedIn = true;
+      hideLogin();
+      document.getElementById("auth-logged-out").style.display = "none";
+      document.getElementById("auth-logged-in").style.display = "";
+      document.getElementById("auth-username").textContent = username;
+      document.getElementById("admin-link").style.display = isAdmin ? "" : "none";
+
+      // Load saved scores
+      const res = await fetch("/api/scores");
+      if (res.ok) {
+        const data = await res.json();
+        clickerScore = data.clicker_score || 1;
+        totalEarned = data.clicker_total_earned || 1;
+        scoreEl.textContent = clickerScore;
+
+        // Restore food tier
+        for (let t = tiers.length - 1; t > 0; t--) {
+          if (totalEarned >= tiers[t].threshold) {
+            foodTier = t;
+            badgeEl.textContent = tiers[t].badge;
+            badgeEl.classList.add("visible");
+            document.title = tiers[t].title;
+            break;
+          }
+        }
+        updateStore();
+      }
+
+      // Auto-save every 30 seconds
+      saveTimer = setInterval(saveScores, 30000);
+    }
+
+    async function saveScores() {
+      if (!isLoggedIn) return;
+      await fetch("/api/scores", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clicker_score: clickerScore,
+          clicker_total_earned: totalEarned,
+          protector_best: killCount,
+        }),
+      });
+    }
+
+    // Save on page close
+    window.addEventListener("beforeunload", () => {
+      if (isLoggedIn) {
+        navigator.sendBeacon("/api/scores", new Blob(
+          [JSON.stringify({ clicker_score: clickerScore, clicker_total_earned: totalEarned, protector_best: killCount })],
+          { type: "application/json" }
+        ));
+      }
+    });
+
+    // Check if already logged in
+    fetch("/api/me").then(r => r.json()).then(data => {
+      if (data.loggedIn) onAuthSuccess(data.username, data.isAdmin);
+    });
 
     // Start cookie clicker
     const initRect = gameArea.getBoundingClientRect();

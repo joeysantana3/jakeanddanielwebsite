@@ -5,9 +5,22 @@ services:
     repo: https://github.com/joeysantana3/jakeanddanielwebsite.git
     branch: main
     region: oregon
-    plan: free
+    plan: starter
     buildCommand: npm install
     startCommand: npm start
     envVars:
       - key: NODE_ENV
         value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: cookieclicker-db
+          property: connectionString
+      - key: SESSION_SECRET
+        generateValue: true
+
+databases:
+  - name: cookieclicker-db
+    databaseName: cookieclicker
+    user: cookieadmin
+    plan: basic-256mb
+    region: oregon
