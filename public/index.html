@@ -751,6 +751,7 @@
     let zombies = [];
     let fences = [];
     let protectorRunning = false;
+    let protectorPaused = false;
     let spawnTimer = null;
     let killCount = 0;
     let spendableKills = 0;
@@ -789,6 +790,7 @@
       }
 
       protectorGameOver = false;
+      protectorPaused = false;
       protectorRunning = true;
       killCountEl.textContent = killCount;
       waveNumEl.textContent = wave;
@@ -815,7 +817,7 @@
     }
 
     function scheduleSpawn() {
-      if (!protectorRunning || protectorGameOver) return;
+      if (!protectorRunning || protectorGameOver || protectorPaused) return;
       spawnTimer = setTimeout(() => {
         spawnZombie();
         scheduleSpawn();
@@ -945,6 +947,7 @@
 
     function protectorLoop() {
       if (!protectorRunning || protectorGameOver) return;
+      if (protectorPaused) { requestAnimationFrame(protectorLoop); return; }
 
       const rect = protectorArea.getBoundingClientRect();
       const cookieLeft = rect.width - (window.innerWidth <= 600 ? 90 : 120);
@@ -1137,7 +1140,19 @@
     storeToggle.addEventListener("click", () => {
       const activeStore = currentMode === "clicker" ? storeEl : protectorStoreEl;
       activeStore.classList.toggle("open");
-      storeToggle.textContent = activeStore.classList.contains("open") ? "X" : "Shop";
+      const isOpen = activeStore.classList.contains("open");
+      storeToggle.textContent = isOpen ? "X" : "Shop";
+
+      // Pause protector mode while shop is open
+      if (currentMode === "protector" && protectorRunning && !protectorGameOver) {
+        if (isOpen) {
+          protectorPaused = true;
+          if (spawnTimer) { clearTimeout(spawnTimer); spawnTimer = null; }
+        } else {
+          protectorPaused = false;
+          scheduleSpawn();
+        }
+      }
     });
 
     // Prevent pull-to-refresh and bounce on mobile
