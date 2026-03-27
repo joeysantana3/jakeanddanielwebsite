@@ -1,5 +1,6 @@
 const express = require("express");
 const session = require("express-session");
+const pgSession = require("connect-pg-simple")(session);
 const { Pool } = require("pg");
 
 const app = express();
@@ -12,6 +13,19 @@ const pool = new Pool({
 });
 
 async function initDB() {
+  // Session table for connect-pg-simple
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS "session" (
+      "sid" VARCHAR NOT NULL COLLATE "default",
+      "sess" JSON NOT NULL,
+      "expire" TIMESTAMP(6) NOT NULL,
+      CONSTRAINT "session_pkey" PRIMARY KEY ("sid")
+    )
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire")
+  `);
+
   await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
@@ -53,6 +67,11 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(
   session({
+    store: new pgSession({
+      pool,
+      tableName: "session",
+      createTableIfMissing: true,
+    }),
     secret: process.env.SESSION_SECRET || "dev-secret-key",
     resave: false,
     saveUninitialized: false,
@@ -97,6 +116,7 @@ app.post("/api/register", async (req, res) => {
     req.session.isAdmin = false;
     res.json({ ok: true, username });
   } catch (err) {
+    console.error("Register error:", err);
     res.status(500).json({ error: "Server error" });
   }
 });
@@ -117,6 +137,7 @@ app.post("/api/login", async (req, res) => {
     req.session.isAdmin = user.is_admin;
     res.json({ ok: true, username, isAdmin: user.is_admin });
   } catch (err) {
+    console.error("Login error:", err);
     res.status(500).json({ error: "Server error" });
   }
 });
