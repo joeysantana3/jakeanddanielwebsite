@@ -152,6 +152,24 @@ app.get("/api/me", (req, res) => {
   res.json({ loggedIn: true, username: req.session.username, isAdmin: req.session.isAdmin });
 });
 
+app.post("/api/change-password", requireAuth, async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  if (!currentPassword || !newPassword) return res.status(400).json({ error: "Both fields required" });
+  if (newPassword.length < 4) return res.status(400).json({ error: "New password must be at least 4 characters" });
+
+  try {
+    const result = await pool.query("SELECT password FROM users WHERE id = $1", [req.session.userId]);
+    if (result.rows.length === 0) return res.status(404).json({ error: "User not found" });
+    if (currentPassword !== result.rows[0].password) return res.status(401).json({ error: "Current password is incorrect" });
+
+    await pool.query("UPDATE users SET password = $1 WHERE id = $2", [newPassword, req.session.userId]);
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("Change password error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 // ============ SCORE ROUTES ============
 
 app.get("/api/scores", requireAuth, async (req, res) => {

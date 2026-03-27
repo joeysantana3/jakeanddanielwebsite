@@ -172,6 +172,7 @@
           <td>${new Date(u.created_at).toLocaleDateString()}</td>
           <td class="actions">
             <button class="small" onclick="toggleAdmin(${u.id})">Toggle Admin</button>
+            <button class="small" onclick="resetPassword(${u.id}, '${u.username}')">Reset PW</button>
             <button class="small danger" onclick="deleteUser(${u.id}, '${u.username}')">Delete</button>
           </td>
         </tr>
@@ -183,6 +184,20 @@
       const data = await res.json();
       if (!res.ok) { alert(data.error); return; }
       loadUsers();
+    }
+
+    async function resetPassword(id, username) {
+      const newPw = prompt("Enter new password for " + username + ":");
+      if (!newPw) return;
+      if (newPw.length < 4) { alert("Password must be at least 4 characters"); return; }
+      const res = await fetch("/api/admin/users/" + id + "/reset-password", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: newPw }),
+      });
+      const data = await res.json();
+      if (!res.ok) { alert(data.error); return; }
+      alert("Password reset for " + username);
     }
 
     async function deleteUser(id, username) {

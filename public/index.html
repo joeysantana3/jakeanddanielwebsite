@@ -581,6 +581,18 @@
       font-size: 14px;
     }
 
+    #password-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.8);
+      z-index: 100;
+      justify-content: center;
+      align-items: center;
+    }
+
+    #password-overlay.visible { display: flex; }
+
     #login-box .btn-login { background: #f5a623; color: #1a1a2e; }
     #login-box .btn-register { background: #444; color: #fff; }
     #login-box .btn-close { background: #333; color: #888; margin-top: 8px; width: 100%; }
@@ -598,6 +610,7 @@
     <span id="auth-logged-out"><button onclick="showLogin()">Login</button></span>
     <span id="auth-logged-in" style="display:none">
       <span class="username" id="auth-username"></span>
+      <button onclick="showChangePassword()">Password</button>
       <a href="/admin" id="admin-link" style="display:none">Admin</a>
       <button onclick="doLogout()">Logout</button>
     </span>
@@ -615,6 +628,22 @@
         <button class="btn-register" onclick="doRegister()">Register</button>
       </div>
       <button class="btn-close" onclick="hideLogin()">Play as Guest</button>
+    </div>
+  </div>
+
+  <!-- Change password overlay -->
+  <div id="password-overlay">
+    <div id="login-box">
+      <h2>Change Password</h2>
+      <div class="error" id="pw-error" style="display:none"></div>
+      <div class="error" id="pw-success" style="display:none; color:#6f6"></div>
+      <input type="password" id="pw-current" placeholder="Current password">
+      <input type="password" id="pw-new" placeholder="New password">
+      <input type="password" id="pw-confirm" placeholder="Confirm new password">
+      <div class="btn-row">
+        <button class="btn-login" onclick="doChangePassword()">Change</button>
+      </div>
+      <button class="btn-close" onclick="hideChangePassword()">Cancel</button>
     </div>
   </div>
 
@@ -1475,6 +1504,45 @@
       if (saveTimer) { clearInterval(saveTimer); saveTimer = null; }
     }
     window.doLogout = doLogout;
+
+    function showChangePassword() {
+      document.getElementById("password-overlay").classList.add("visible");
+      document.getElementById("pw-error").style.display = "none";
+      document.getElementById("pw-success").style.display = "none";
+      document.getElementById("pw-current").value = "";
+      document.getElementById("pw-new").value = "";
+      document.getElementById("pw-confirm").value = "";
+    }
+    window.showChangePassword = showChangePassword;
+
+    function hideChangePassword() {
+      document.getElementById("password-overlay").classList.remove("visible");
+    }
+    window.hideChangePassword = hideChangePassword;
+
+    async function doChangePassword() {
+      const current = document.getElementById("pw-current").value;
+      const newPw = document.getElementById("pw-new").value;
+      const confirm = document.getElementById("pw-confirm").value;
+      const errEl = document.getElementById("pw-error");
+      const successEl = document.getElementById("pw-success");
+      errEl.style.display = "none";
+      successEl.style.display = "none";
+
+      if (newPw !== confirm) { errEl.textContent = "Passwords don't match"; errEl.style.display = "block"; return; }
+
+      const res = await fetch("/api/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentPassword: current, newPassword: newPw }),
+      });
+      const data = await res.json();
+      if (!res.ok) { errEl.textContent = data.error; errEl.style.display = "block"; return; }
+      successEl.textContent = "Password changed!";
+      successEl.style.display = "block";
+      setTimeout(hideChangePassword, 1500);
+    }
+    window.doChangePassword = doChangePassword;
 
     async function onAuthSuccess(username, isAdmin) {
       isLoggedIn = true;
