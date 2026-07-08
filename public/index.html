@@ -593,6 +593,68 @@
 
     #password-overlay.visible { display: flex; }
 
+    #friends-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.8);
+      z-index: 100;
+      justify-content: center;
+      align-items: center;
+    }
+    #friends-overlay.visible { display: flex; }
+    #friends-box {
+      background: #2a2a4a;
+      padding: 30px;
+      border-radius: 12px;
+      border: 2px solid #444;
+      width: 380px;
+      max-width: 90vw;
+      max-height: 85vh;
+      overflow-y: auto;
+    }
+    #friends-box h2 { color: #f5a623; margin-bottom: 15px; text-align: center; }
+    #friends-box .error { color: #e44d26; font-size: 13px; margin-bottom: 8px; text-align: center; }
+    #friends-box input {
+      display: block;
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #444;
+      border-radius: 5px;
+      background: #1a1a2e;
+      color: #fff;
+      font-size: 14px;
+    }
+    #friends-box .btn-close {
+      background: #333; color: #888; margin-top: 15px; width: 100%;
+      padding: 10px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; font-size: 14px;
+    }
+    .friend-add-row { display: flex; gap: 8px; margin-bottom: 15px; }
+    .friend-add-row button {
+      padding: 10px 16px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; font-size: 14px;
+    }
+    .friend-section-title {
+      color: #f5a623; font-size: 13px; text-transform: uppercase; letter-spacing: 1px;
+      margin: 16px 0 8px; border-bottom: 1px solid #444; padding-bottom: 4px;
+    }
+    .friend-row {
+      display: flex; align-items: center; justify-content: space-between;
+      background: #1a1a2e; border-radius: 6px; padding: 8px 10px; margin-bottom: 6px; gap: 8px;
+    }
+    .friend-row .fr-name { color: #fff; font-weight: bold; }
+    .friend-row .fr-scores { color: #aaa; font-size: 12px; margin-top: 2px; }
+    .friend-row .fr-actions { display: flex; gap: 6px; flex-shrink: 0; }
+    .friend-row button {
+      padding: 5px 10px; border: none; border-radius: 4px; font-size: 12px; font-weight: bold; cursor: pointer;
+    }
+    .fr-accept { background: #f5a623; color: #1a1a2e; }
+    .fr-remove { background: #444; color: #e88; }
+    .friend-empty { color: #888; font-size: 13px; text-align: center; padding: 8px; }
+    #friend-badge {
+      background: #e44d26; color: #fff; border-radius: 10px; padding: 0 6px;
+      font-size: 11px; font-weight: bold; margin-left: 2px;
+    }
+
     #login-box .btn-login { background: #f5a623; color: #1a1a2e; }
     #login-box .btn-register { background: #444; color: #fff; }
     #login-box .btn-close { background: #333; color: #888; margin-top: 8px; width: 100%; }
@@ -610,6 +672,7 @@
     <span id="auth-logged-out"><button onclick="showLogin()">Login</button></span>
     <span id="auth-logged-in" style="display:none">
       <span class="username" id="auth-username"></span>
+      <button onclick="showFriends()">Friends <span id="friend-badge" style="display:none"></span></button>
       <button onclick="showChangePassword()">Password</button>
       <a href="/admin" id="admin-link" style="display:none">Admin</a>
       <button onclick="doLogout()">Logout</button>
@@ -644,6 +707,20 @@
         <button class="btn-login" onclick="doChangePassword()">Change</button>
       </div>
       <button class="btn-close" onclick="hideChangePassword()">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Friends overlay -->
+  <div id="friends-overlay">
+    <div id="friends-box">
+      <h2>Friends</h2>
+      <div class="error" id="friend-error" style="display:none"></div>
+      <div class="friend-add-row">
+        <input type="text" id="friend-username" placeholder="Add friend by username">
+        <button class="btn-login" onclick="sendFriendRequest()">Add</button>
+      </div>
+      <div id="friends-content"></div>
+      <button class="btn-close" onclick="hideFriends()">Close</button>
     </div>
   </div>
 
@@ -1501,6 +1578,7 @@
       isLoggedIn = false;
       document.getElementById("auth-logged-in").style.display = "none";
       document.getElementById("auth-logged-out").style.display = "";
+      document.getElementById("friend-badge").style.display = "none";
       if (saveTimer) { clearInterval(saveTimer); saveTimer = null; }
     }
     window.doLogout = doLogout;
@@ -1575,6 +1653,9 @@
 
       // Auto-save every 30 seconds
       saveTimer = setInterval(saveScores, 30000);
+
+      // Load friends to surface any pending-request badge
+      loadFriends();
     }
 
     async function saveScores() {
@@ -1599,6 +1680,111 @@
         ));
       }
     });
+
+    // ============ FRIENDS ============
+    function showFriends() {
+      document.getElementById("friends-overlay").classList.add("visible");
+      document.getElementById("friend-error").style.display = "none";
+      loadFriends();
+    }
+    window.showFriends = showFriends;
+
+    function hideFriends() {
+      document.getElementById("friends-overlay").classList.remove("visible");
+    }
+    window.hideFriends = hideFriends;
+
+    function esc(s) {
+      return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    }
+
+    async function loadFriends() {
+      const res = await fetch("/api/friends");
+      if (!res.ok) return;
+      const data = await res.json();
+      renderFriends(data);
+      updateFriendBadge(data.incoming.length);
+    }
+
+    function updateFriendBadge(count) {
+      const badge = document.getElementById("friend-badge");
+      if (count > 0) { badge.textContent = count; badge.style.display = ""; }
+      else { badge.style.display = "none"; }
+    }
+
+    function renderFriends(data) {
+      const el = document.getElementById("friends-content");
+      let html = "";
+
+      if (data.incoming.length) {
+        html += `<div class="friend-section-title">Requests</div>`;
+        for (const r of data.incoming) {
+          html += `<div class="friend-row"><div><div class="fr-name">${esc(r.username)}</div></div>
+            <div class="fr-actions">
+              <button class="fr-accept" onclick="acceptFriend(${r.id})">Accept</button>
+              <button class="fr-remove" onclick="removeFriend(${r.id})">Decline</button>
+            </div></div>`;
+        }
+      }
+
+      html += `<div class="friend-section-title">Friends</div>`;
+      if (data.friends.length) {
+        for (const f of data.friends) {
+          html += `<div class="friend-row"><div>
+              <div class="fr-name">${esc(f.username)}</div>
+              <div class="fr-scores">🍪 ${f.clicker_score} &nbsp;·&nbsp; total ${f.clicker_total_earned} &nbsp;·&nbsp; 🛡️ best ${f.protector_best}</div>
+            </div>
+            <div class="fr-actions">
+              <button class="fr-remove" onclick="removeFriend(${f.friendship_id})">Remove</button>
+            </div></div>`;
+        }
+      } else {
+        html += `<div class="friend-empty">No friends yet — add one above!</div>`;
+      }
+
+      if (data.outgoing.length) {
+        html += `<div class="friend-section-title">Pending</div>`;
+        for (const o of data.outgoing) {
+          html += `<div class="friend-row"><div><div class="fr-name">${esc(o.username)}</div></div>
+            <div class="fr-actions">
+              <button class="fr-remove" onclick="removeFriend(${o.id})">Cancel</button>
+            </div></div>`;
+        }
+      }
+
+      el.innerHTML = html;
+    }
+
+    async function sendFriendRequest() {
+      const input = document.getElementById("friend-username");
+      const errEl = document.getElementById("friend-error");
+      errEl.style.display = "none";
+      const username = input.value.trim();
+      if (!username) return;
+
+      const res = await fetch("/api/friends/request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username }),
+      });
+      const data = await res.json();
+      if (!res.ok) { errEl.textContent = data.error; errEl.style.display = "block"; return; }
+      input.value = "";
+      loadFriends();
+    }
+    window.sendFriendRequest = sendFriendRequest;
+
+    async function acceptFriend(id) {
+      await fetch(`/api/friends/${id}/accept`, { method: "POST" });
+      loadFriends();
+    }
+    window.acceptFriend = acceptFriend;
+
+    async function removeFriend(id) {
+      await fetch(`/api/friends/${id}`, { method: "DELETE" });
+      loadFriends();
+    }
+    window.removeFriend = removeFriend;
 
     // Check if already logged in
     fetch("/api/me").then(r => r.json()).then(data => {

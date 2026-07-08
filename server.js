@@ -45,6 +45,22 @@ async function initDB() {
       updated_at TIMESTAMP DEFAULT NOW()
     )
   `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS friendships (
+      id SERIAL PRIMARY KEY,
+      requester_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      addressee_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      status VARCHAR(20) NOT NULL DEFAULT 'pending',
+      created_at TIMESTAMP DEFAULT NOW(),
+      UNIQUE (requester_id, addressee_id)
+    )
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_friendships_addressee ON friendships (addressee_id)
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_friendships_requester ON friendships (requester_id)
+  `);
   // Create default admin if none exists
   const admins = await pool.query("SELECT id FROM users WHERE is_admin = TRUE");
   if (admins.rows.length === 0) {
@@ -191,6 +207,121 @@ app.post("/api/scores", requireAuth, async (req, res) => {
     );
     res.json({ ok: true });
   } catch (err) {
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// ============ FRIEND ROUTES ============
+
+// Get friends (accepted, with their scores) + incoming/outgoing pending requests
+app.get("/api/friends", requireAuth, async (req, res) => {
+  const me = req.session.userId;
+  try {
+    const friends = await pool.query(
+      `SELECT f.id AS friendship_id, u.id, u.username,
+              COALESCE(s.clicker_score, 0) AS clicker_score,
+              COALESCE(s.clicker_total_earned, 0) AS clicker_total_earned,
+              COALESCE(s.protector_best, 0) AS protector_best
+       FROM friendships f
+       JOIN users u ON u.id = CASE WHEN f.requester_id = $1 THEN f.addressee_id ELSE f.requester_id END
+       LEFT JOIN scores s ON s.user_id = u.id
+       WHERE f.status = 'accepted' AND (f.requester_id = $1 OR f.addressee_id = $1)
+       ORDER BY u.username`,
+      [me]
+    );
+    const incoming = await pool.query(
+      `SELECT f.id, u.username
+       FROM friendships f
+       JOIN users u ON u.id = f.requester_id
+       WHERE f.addressee_id = $1 AND f.status = 'pending'
+       ORDER BY f.created_at DESC`,
+      [me]
+    );
+    const outgoing = await pool.query(
+      `SELECT f.id, u.username
+       FROM friendships f
+       JOIN users u ON u.id = f.addressee_id
+       WHERE f.requester_id = $1 AND f.status = 'pending'
+       ORDER BY f.created_at DESC`,
+      [me]
+    );
+    res.json({ friends: friends.rows, incoming: incoming.rows, outgoing: outgoing.rows });
+  } catch (err) {
+    console.error("Get friends error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// Send a friend request by username
+app.post("/api/friends/request", requireAuth, async (req, res) => {
+  const me = req.session.userId;
+  const { username } = req.body;
+  if (!username) return res.status(400).json({ error: "Username required" });
+
+  try {
+    const target = await pool.query("SELECT id FROM users WHERE username = $1", [username]);
+    if (target.rows.length === 0) return res.status(404).json({ error: "User not found" });
+    const otherId = target.rows[0].id;
+    if (otherId === me) return res.status(400).json({ error: "You can't friend yourself" });
+
+    // Any existing friendship between the two, in either direction?
+    const existing = await pool.query(
+      `SELECT id, requester_id, addressee_id, status FROM friendships
+       WHERE (requester_id = $1 AND addressee_id = $2)
+          OR (requester_id = $2 AND addressee_id = $1)`,
+      [me, otherId]
+    );
+
+    if (existing.rows.length > 0) {
+      const f = existing.rows[0];
+      if (f.status === "accepted") return res.status(409).json({ error: "You're already friends" });
+      if (f.requester_id === me) return res.status(409).json({ error: "Request already sent" });
+      // They already requested me -> accept it
+      await pool.query("UPDATE friendships SET status = 'accepted' WHERE id = $1", [f.id]);
+      return res.json({ ok: true, accepted: true });
+    }
+
+    await pool.query(
+      "INSERT INTO friendships (requester_id, addressee_id, status) VALUES ($1, $2, 'pending')",
+      [me, otherId]
+    );
+    res.json({ ok: true, accepted: false });
+  } catch (err) {
+    console.error("Friend request error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// Accept an incoming request (only the addressee can accept)
+app.post("/api/friends/:id/accept", requireAuth, async (req, res) => {
+  const me = req.session.userId;
+  const id = parseInt(req.params.id);
+  try {
+    const result = await pool.query(
+      "UPDATE friendships SET status = 'accepted' WHERE id = $1 AND addressee_id = $2 AND status = 'pending'",
+      [id, me]
+    );
+    if (result.rowCount === 0) return res.status(404).json({ error: "Request not found" });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("Friend accept error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// Remove a friendship: decline incoming, cancel outgoing, or unfriend (either party)
+app.delete("/api/friends/:id", requireAuth, async (req, res) => {
+  const me = req.session.userId;
+  const id = parseInt(req.params.id);
+  try {
+    const result = await pool.query(
+      "DELETE FROM friendships WHERE id = $1 AND (requester_id = $2 OR addressee_id = $2)",
+      [id, me]
+    );
+    if (result.rowCount === 0) return res.status(404).json({ error: "Friendship not found" });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error("Friend remove error:", err);
     res.status(500).json({ error: "Server error" });
   }
 });
