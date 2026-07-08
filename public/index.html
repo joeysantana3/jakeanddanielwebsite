@@ -649,6 +649,59 @@
     }
     .fr-accept { background: #f5a623; color: #1a1a2e; }
     .fr-remove { background: #444; color: #e88; }
+    .fr-chat { background: #3a6ea5; color: #fff; }
+    .fr-unread {
+      background: #e44d26; color: #fff; border-radius: 9px; padding: 0 5px;
+      font-size: 11px; margin-left: 2px;
+    }
+
+    #chat-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.8);
+      z-index: 101;
+      justify-content: center;
+      align-items: center;
+    }
+    #chat-overlay.visible { display: flex; }
+    #chat-box {
+      background: #2a2a4a;
+      border-radius: 12px;
+      border: 2px solid #444;
+      width: 380px;
+      max-width: 90vw;
+      height: 70vh;
+      max-height: 560px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    #chat-header {
+      display: flex; align-items: center; gap: 10px;
+      padding: 14px 16px; border-bottom: 1px solid #444; flex-shrink: 0;
+    }
+    #chat-header #chat-title { color: #f5a623; font-weight: bold; font-size: 16px; }
+    #chat-back {
+      background: #333; color: #ccc; border: none; border-radius: 5px;
+      padding: 6px 10px; cursor: pointer; font-size: 13px; font-weight: bold;
+    }
+    #chat-messages {
+      flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 8px;
+    }
+    .chat-msg { max-width: 75%; padding: 8px 12px; border-radius: 12px; font-size: 14px; line-height: 1.3; word-wrap: break-word; }
+    .chat-msg.mine { align-self: flex-end; background: #f5a623; color: #1a1a2e; border-bottom-right-radius: 3px; }
+    .chat-msg.theirs { align-self: flex-start; background: #1a1a2e; color: #fff; border-bottom-left-radius: 3px; }
+    .chat-msg .chat-time { display: block; font-size: 10px; opacity: 0.6; margin-top: 3px; }
+    .chat-empty { color: #888; font-size: 13px; text-align: center; margin: auto; }
+    #chat-input-row { display: flex; gap: 8px; padding: 12px; border-top: 1px solid #444; flex-shrink: 0; }
+    #chat-input-row input {
+      flex: 1; padding: 10px; border: 1px solid #444; border-radius: 5px;
+      background: #1a1a2e; color: #fff; font-size: 14px;
+    }
+    #chat-input-row button {
+      padding: 10px 16px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; font-size: 14px;
+    }
     .friend-empty { color: #888; font-size: 13px; text-align: center; padding: 8px; }
     #friend-badge {
       background: #e44d26; color: #fff; border-radius: 10px; padding: 0 6px;
@@ -721,6 +774,21 @@
       </div>
       <div id="friends-content"></div>
       <button class="btn-close" onclick="hideFriends()">Close</button>
+    </div>
+  </div>
+
+  <!-- Chat overlay -->
+  <div id="chat-overlay">
+    <div id="chat-box">
+      <div id="chat-header">
+        <button id="chat-back" onclick="closeChat()">‹ Back</button>
+        <span id="chat-title"></span>
+      </div>
+      <div id="chat-messages"></div>
+      <div id="chat-input-row">
+        <input type="text" id="chat-input" placeholder="Message…" maxlength="2000" autocomplete="off">
+        <button class="btn-login" onclick="sendMessage()">Send</button>
+      </div>
     </div>
   </div>
 
@@ -1703,7 +1771,8 @@
       if (!res.ok) return;
       const data = await res.json();
       renderFriends(data);
-      updateFriendBadge(data.incoming.length);
+      const unread = data.friends.reduce((n, f) => n + Number(f.unread || 0), 0);
+      updateFriendBadge(data.incoming.length + unread);
     }
 
     function updateFriendBadge(count) {
@@ -1730,11 +1799,14 @@
       html += `<div class="friend-section-title">Friends</div>`;
       if (data.friends.length) {
         for (const f of data.friends) {
+          const unread = Number(f.unread || 0);
+          const unreadBadge = unread > 0 ? ` <span class="fr-unread">${unread}</span>` : "";
           html += `<div class="friend-row"><div>
               <div class="fr-name">${esc(f.username)}</div>
               <div class="fr-scores">🍪 ${f.clicker_score} &nbsp;·&nbsp; total ${f.clicker_total_earned} &nbsp;·&nbsp; 🛡️ best ${f.protector_best}</div>
             </div>
             <div class="fr-actions">
+              <button class="fr-chat" onclick="openChat(${f.id}, '${esc(f.username).replace(/'/g, "\\'")}')">Chat${unreadBadge}</button>
               <button class="fr-remove" onclick="removeFriend(${f.friendship_id})">Remove</button>
             </div></div>`;
         }
@@ -1785,6 +1857,74 @@
       loadFriends();
     }
     window.removeFriend = removeFriend;
+
+    // ============ CHAT ============
+    let chatFriendId = null;
+    let chatPoll = null;
+    let chatLastCount = -1;
+
+    function openChat(friendId, username) {
+      chatFriendId = friendId;
+      chatLastCount = -1;
+      document.getElementById("chat-title").textContent = username;
+      document.getElementById("chat-messages").innerHTML = "";
+      document.getElementById("chat-input").value = "";
+      document.getElementById("chat-overlay").classList.add("visible");
+      loadMessages(true);
+      if (chatPoll) clearInterval(chatPoll);
+      chatPoll = setInterval(() => loadMessages(false), 3000);
+      document.getElementById("chat-input").focus();
+    }
+    window.openChat = openChat;
+
+    function closeChat() {
+      document.getElementById("chat-overlay").classList.remove("visible");
+      if (chatPoll) { clearInterval(chatPoll); chatPoll = null; }
+      chatFriendId = null;
+      loadFriends(); // refresh unread badges now that we've read them
+    }
+    window.closeChat = closeChat;
+
+    async function loadMessages(forceScroll) {
+      if (!chatFriendId) return;
+      const res = await fetch(`/api/messages/${chatFriendId}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      // Only re-render when something changed, to avoid clobbering scroll
+      if (data.messages.length === chatLastCount) return;
+      const box = document.getElementById("chat-messages");
+      const atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
+      chatLastCount = data.messages.length;
+
+      if (!data.messages.length) {
+        box.innerHTML = `<div class="chat-empty">No messages yet. Say hi!</div>`;
+        return;
+      }
+      box.innerHTML = data.messages.map(m => {
+        const t = new Date(m.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+        return `<div class="chat-msg ${m.mine ? "mine" : "theirs"}">${esc(m.body)}<span class="chat-time">${t}</span></div>`;
+      }).join("");
+      if (forceScroll || atBottom) box.scrollTop = box.scrollHeight;
+    }
+
+    async function sendMessage() {
+      const input = document.getElementById("chat-input");
+      const text = input.value.trim();
+      if (!text || !chatFriendId) return;
+      input.value = "";
+      const res = await fetch("/api/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ toUserId: chatFriendId, body: text }),
+      });
+      if (res.ok) loadMessages(true);
+      else input.value = text; // restore on failure
+    }
+    window.sendMessage = sendMessage;
+
+    document.getElementById("chat-input").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); sendMessage(); }
+    });
 
     // Check if already logged in
     fetch("/api/me").then(r => r.json()).then(data => {

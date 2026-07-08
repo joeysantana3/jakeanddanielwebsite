@@ -61,6 +61,22 @@ async function initDB() {
   await pool.query(`
     CREATE INDEX IF NOT EXISTS idx_friendships_requester ON friendships (requester_id)
   `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS messages (
+      id SERIAL PRIMARY KEY,
+      sender_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      recipient_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      body TEXT NOT NULL,
+      read_at TIMESTAMP,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_messages_pair ON messages (sender_id, recipient_id, created_at)
+  `);
+  await pool.query(`
+    CREATE INDEX IF NOT EXISTS idx_messages_unread ON messages (recipient_id) WHERE read_at IS NULL
+  `);
   // Create default admin if none exists
   const admins = await pool.query("SELECT id FROM users WHERE is_admin = TRUE");
   if (admins.rows.length === 0) {
@@ -221,7 +237,9 @@ app.get("/api/friends", requireAuth, async (req, res) => {
       `SELECT f.id AS friendship_id, u.id, u.username,
               COALESCE(s.clicker_score, 0) AS clicker_score,
               COALESCE(s.clicker_total_earned, 0) AS clicker_total_earned,
-              COALESCE(s.protector_best, 0) AS protector_best
+              COALESCE(s.protector_best, 0) AS protector_best,
+              (SELECT COUNT(*) FROM messages m
+               WHERE m.recipient_id = $1 AND m.sender_id = u.id AND m.read_at IS NULL) AS unread
        FROM friendships f
        JOIN users u ON u.id = CASE WHEN f.requester_id = $1 THEN f.addressee_id ELSE f.requester_id END
        LEFT JOIN scores s ON s.user_id = u.id
@@ -322,6 +340,81 @@ app.delete("/api/friends/:id", requireAuth, async (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     console.error("Friend remove error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// ============ MESSAGE ROUTES ============
+
+// Are these two users accepted friends?
+async function areFriends(a, b) {
+  const r = await pool.query(
+    `SELECT 1 FROM friendships
+     WHERE status = 'accepted'
+       AND ((requester_id = $1 AND addressee_id = $2)
+         OR (requester_id = $2 AND addressee_id = $1))`,
+    [a, b]
+  );
+  return r.rows.length > 0;
+}
+
+// Fetch the conversation with a friend, and mark their messages to me as read
+app.get("/api/messages/:friendId", requireAuth, async (req, res) => {
+  const me = req.session.userId;
+  const friendId = parseInt(req.params.friendId);
+  if (!friendId) return res.status(400).json({ error: "Invalid user" });
+
+  try {
+    if (!(await areFriends(me, friendId))) return res.status(403).json({ error: "Not friends" });
+
+    const result = await pool.query(
+      `SELECT id, sender_id, body, created_at
+       FROM messages
+       WHERE (sender_id = $1 AND recipient_id = $2)
+          OR (sender_id = $2 AND recipient_id = $1)
+       ORDER BY created_at ASC
+       LIMIT 200`,
+      [me, friendId]
+    );
+
+    await pool.query(
+      "UPDATE messages SET read_at = NOW() WHERE recipient_id = $1 AND sender_id = $2 AND read_at IS NULL",
+      [me, friendId]
+    );
+
+    const messages = result.rows.map((m) => ({
+      id: m.id,
+      body: m.body,
+      mine: m.sender_id === me,
+      created_at: m.created_at,
+    }));
+    res.json({ messages });
+  } catch (err) {
+    console.error("Get messages error:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// Send a message to a friend
+app.post("/api/messages", requireAuth, async (req, res) => {
+  const me = req.session.userId;
+  const { toUserId, body } = req.body;
+  const recipientId = parseInt(toUserId);
+  const text = (body || "").trim();
+  if (!recipientId) return res.status(400).json({ error: "Invalid recipient" });
+  if (!text) return res.status(400).json({ error: "Message is empty" });
+  if (text.length > 2000) return res.status(400).json({ error: "Message too long (max 2000)" });
+
+  try {
+    if (!(await areFriends(me, recipientId))) return res.status(403).json({ error: "Not friends" });
+
+    const result = await pool.query(
+      "INSERT INTO messages (sender_id, recipient_id, body) VALUES ($1, $2, $3) RETURNING id, created_at",
+      [me, recipientId, text]
+    );
+    res.json({ ok: true, id: result.rows[0].id, created_at: result.rows[0].created_at });
+  } catch (err) {
+    console.error("Send message error:", err);
     res.status(500).json({ error: "Server error" });
   }
 });
