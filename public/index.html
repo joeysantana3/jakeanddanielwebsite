@@ -702,6 +702,71 @@
     #chat-input-row button {
       padding: 10px 16px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; font-size: 14px;
     }
+
+    /* ===== Battle ===== */
+    .fr-battle { background: #9c27b0; color: #fff; }
+
+    #battle-invite-overlay, #battle-wait-overlay, #battle-result-overlay {
+      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85);
+      z-index: 110; justify-content: center; align-items: center;
+    }
+    #battle-invite-overlay.visible, #battle-wait-overlay.visible, #battle-result-overlay.visible { display: flex; }
+    #battle-result-title { color: #f5a623; text-align: center; margin-bottom: 12px; font-size: 26px; }
+
+    #battle-hud {
+      display: none;
+      position: fixed;
+      top: 8px; left: 50%; transform: translateX(-50%);
+      z-index: 90;
+      background: rgba(26,26,46,0.92);
+      border: 2px solid #f5a623;
+      border-radius: 10px;
+      padding: 8px 16px;
+      text-align: center;
+      min-width: 200px;
+      max-width: 94vw;
+    }
+    #battle-hud.visible { display: block; }
+    #battle-timer { color: #f5a623; font-size: 28px; font-weight: bold; line-height: 1; }
+    #battle-role-label { color: #ccc; font-size: 12px; margin-top: 2px; }
+    #battle-energy-container {
+      display: none; margin-top: 6px; height: 12px; background: #333; border-radius: 6px; overflow: hidden;
+    }
+    #battle-energy-container.visible { display: block; }
+    #battle-energy-bar { height: 100%; width: 100%; background: #9c27b0; transition: width 0.08s linear; }
+    #battle-spawn-hint { display: none; color: #ce93d8; font-size: 11px; margin-top: 5px; font-weight: bold; }
+    #battle-spawn-hint.visible { display: block; }
+    #battle-quit {
+      margin-top: 6px; background: #333; color: #999; border: none; border-radius: 5px;
+      padding: 4px 12px; font-size: 11px; cursor: pointer; font-weight: bold;
+    }
+
+    /* Attacker view: field is a spawn surface, zombies non-interactive */
+    #protector-area.battle-attacker { cursor: crosshair; }
+    #protector-area.battle-attacker .zombie { pointer-events: none; }
+
+    .spawn-ping {
+      position: absolute;
+      width: 24px; height: 24px; margin: -12px 0 0 -12px;
+      border: 3px solid #ce93d8; border-radius: 50%;
+      pointer-events: none;
+      animation: pingExpand 0.5s ease-out forwards;
+    }
+    @keyframes pingExpand {
+      from { transform: scale(0.3); opacity: 0.9; }
+      to { transform: scale(1.8); opacity: 0; }
+    }
+
+    #toast {
+      display: none;
+      position: fixed;
+      bottom: 90px; left: 50%; transform: translateX(-50%);
+      background: rgba(0,0,0,0.88); color: #fff;
+      padding: 10px 18px; border-radius: 20px; font-size: 14px;
+      z-index: 120; max-width: 90vw; text-align: center;
+      border: 1px solid #555;
+    }
+    #toast.visible { display: block; }
     .friend-empty { color: #888; font-size: 13px; text-align: center; padding: 8px; }
     #friend-badge {
       background: #e44d26; color: #fff; border-radius: 10px; padding: 0 6px;
@@ -791,6 +856,47 @@
       </div>
     </div>
   </div>
+
+  <!-- Battle: incoming challenge -->
+  <div id="battle-invite-overlay">
+    <div id="login-box">
+      <h2>&#9876;&#65039; Battle Challenge</h2>
+      <p id="battle-invite-text" style="color:#ccc;text-align:center;margin-bottom:14px;font-size:14px;line-height:1.4;"></p>
+      <div class="btn-row">
+        <button class="btn-login" onclick="acceptBattle()">Accept</button>
+        <button class="btn-register" onclick="declineBattle()">Decline</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Battle: waiting for opponent -->
+  <div id="battle-wait-overlay">
+    <div id="login-box">
+      <h2>&#9876;&#65039; Challenge Sent</h2>
+      <p id="battle-wait-text" style="color:#ccc;text-align:center;margin-bottom:14px;font-size:14px;"></p>
+      <button class="btn-close" onclick="cancelBattleWait()">Cancel</button>
+    </div>
+  </div>
+
+  <!-- Battle: result -->
+  <div id="battle-result-overlay">
+    <div id="login-box">
+      <h2 id="battle-result-title"></h2>
+      <p id="battle-result-text" style="color:#ccc;text-align:center;margin-bottom:14px;font-size:15px;line-height:1.4;"></p>
+      <button class="btn-login" onclick="closeBattleResult()">Back to Game</button>
+    </div>
+  </div>
+
+  <!-- Battle HUD (during a match) -->
+  <div id="battle-hud">
+    <div id="battle-timer">1:30</div>
+    <div id="battle-role-label"></div>
+    <div id="battle-energy-container"><div id="battle-energy-bar"></div></div>
+    <div id="battle-spawn-hint">Tap a lane to send a zombie</div>
+    <button id="battle-quit" onclick="quitBattle()">Quit</button>
+  </div>
+
+  <div id="toast"></div>
 
   <div id="mode-tabs">
     <button class="mode-tab active" data-mode="clicker">Cookie Clicker</button>
@@ -1076,6 +1182,10 @@
     let cookieHealth = 100;
     let protectorGameOver = false;
 
+    // Battle (PvP) state
+    let battleActive = false;
+    let battleRole = null; // "defender" | "attacker"
+
     // Fence costs
     const STRAIGHT_FENCE_COST = 10;
     const ANGLED_FENCE_COST = 15;
@@ -1143,6 +1253,7 @@
     }
 
     function scheduleSpawn() {
+      if (battleActive) return; // in battle, zombies come from the attacker, not a timer
       if (!protectorRunning || protectorGameOver || protectorPaused) return;
       spawnTimer = setTimeout(() => {
         spawnZombie();
@@ -1150,7 +1261,7 @@
       }, getSpawnInterval());
     }
 
-    function spawnZombie() {
+    function spawnZombie(yOverride, speedOverride) {
       const rect = protectorArea.getBoundingClientRect();
       const el = document.createElement("div");
       el.className = "zombie";
@@ -1158,8 +1269,11 @@
       protectorArea.appendChild(el);
 
       const zombieSize = window.innerWidth <= 600 ? 50 : 60;
-      const y = Math.random() * (rect.height - zombieSize);
-      const zombie = { el, x: -zombieSize, y, speed: getZombieSpeed(), baseSpeed: getZombieSpeed(), slowed: 0 };
+      const y = (yOverride != null)
+        ? Math.max(0, Math.min(rect.height - zombieSize, yOverride))
+        : Math.random() * (rect.height - zombieSize);
+      const spd = (speedOverride != null) ? speedOverride : getZombieSpeed();
+      const zombie = { el, x: -zombieSize, y, speed: spd, baseSpeed: spd, slowed: 0 };
 
       el.addEventListener("click", (e) => {
         e.stopPropagation();
@@ -1315,6 +1429,11 @@
           protectorCookie.style.animation = "shake 0.3s ease";
 
           if (cookieHealth <= 0) {
+            if (battleActive) {
+              protectorCookie.textContent = "\u{1F4A8}";
+              endBattle("attacker", true);
+              return;
+            }
             protectorGameOver = true;
             stopProtector();
             zombies.forEach(zz => zz.el.remove());
@@ -1397,6 +1516,12 @@
             break;
           }
         }
+      }
+
+      // Battle (defender is authoritative): stream state + enforce the timer
+      if (battleActive && battleRole === "defender") {
+        maybeBroadcastBattleState(rect);
+        if (Date.now() >= battleEndTime) { endBattle("defender", true); return; }
       }
 
       requestAnimationFrame(protectorLoop);
@@ -1648,6 +1773,8 @@
       document.getElementById("auth-logged-out").style.display = "";
       document.getElementById("friend-badge").style.display = "none";
       if (saveTimer) { clearInterval(saveTimer); saveTimer = null; }
+      if (battleActive) quitBattle();
+      closeBattleSocket();
     }
     window.doLogout = doLogout;
 
@@ -1724,6 +1851,9 @@
 
       // Load friends to surface any pending-request badge
       loadFriends();
+
+      // Open the realtime socket for battle invites
+      connectBattleSocket();
     }
 
     async function saveScores() {
@@ -1806,6 +1936,7 @@
               <div class="fr-scores">🍪 ${f.clicker_score} &nbsp;·&nbsp; total ${f.clicker_total_earned} &nbsp;·&nbsp; 🛡️ best ${f.protector_best}</div>
             </div>
             <div class="fr-actions">
+              <button class="fr-battle" onclick="sendBattleInvite(${f.id}, '${esc(f.username).replace(/'/g, "\\'")}')" title="Challenge to battle">&#9876;&#65039;</button>
               <button class="fr-chat" onclick="openChat(${f.id}, '${esc(f.username).replace(/'/g, "\\'")}')">Chat${unreadBadge}</button>
               <button class="fr-remove" onclick="removeFriend(${f.friendship_id})">Remove</button>
             </div></div>`;
@@ -1925,6 +2056,358 @@
     document.getElementById("chat-input").addEventListener("keydown", (e) => {
       if (e.key === "Enter") { e.preventDefault(); sendMessage(); }
     });
+
+    // ============ BATTLE (PvP) ============
+    const BATTLE_DURATION = 90;        // seconds
+    const BATTLE_START_HEALTH = 100;
+    const BATTLE_START_BUDGET = 30;    // defender's starting spendable kills
+    const BATTLE_ZOMBIE_SPEED = 1.3;
+    const ATTACKER_MAX_ENERGY = 100;
+    const SPAWN_COST = 25;
+    const ENERGY_REGEN = 22;           // energy per second
+
+    let battleSocket = null;
+    let battleOpponent = "";
+    let battleTargetName = "";
+    let battleEndTime = 0;
+    let lastBattleBroadcast = 0;
+    let battleEnergy = ATTACKER_MAX_ENERGY;
+    let attackerRunning = false;
+    let lastEnergyTs = 0;
+    let attackerZombieEls = [];
+
+    function formatTime(sec) {
+      sec = Math.max(0, sec | 0);
+      const m = Math.floor(sec / 60), s = sec % 60;
+      return m + ":" + (s < 10 ? "0" : "") + s;
+    }
+
+    function showToast(text) {
+      const t = document.getElementById("toast");
+      t.textContent = text;
+      t.classList.add("visible");
+      clearTimeout(t._timer);
+      t._timer = setTimeout(() => t.classList.remove("visible"), 2500);
+    }
+
+    // ---- Socket ----
+    function connectBattleSocket() {
+      if (battleSocket && (battleSocket.readyState === WebSocket.OPEN || battleSocket.readyState === WebSocket.CONNECTING)) return;
+      const proto = location.protocol === "https:" ? "wss:" : "ws:";
+      battleSocket = new WebSocket(proto + "//" + location.host);
+      battleSocket.onmessage = (ev) => {
+        let msg; try { msg = JSON.parse(ev.data); } catch { return; }
+        handleBattleMessage(msg);
+      };
+      battleSocket.onclose = () => { battleSocket = null; };
+      battleSocket.onerror = () => {};
+    }
+    function battleSend(msg) {
+      if (battleSocket && battleSocket.readyState === WebSocket.OPEN) battleSocket.send(JSON.stringify(msg));
+    }
+    function closeBattleSocket() {
+      if (battleSocket) { battleSocket.close(); battleSocket = null; }
+    }
+
+    function handleBattleMessage(msg) {
+      switch (msg.type) {
+        case "battle:invited": showBattleInvite(msg.fromUsername); break;
+        case "battle:invitePending": showBattleWait(); break;
+        case "battle:declined": hideBattleWait(); showToast((msg.byName || "They") + " declined the battle"); break;
+        case "battle:inviteCanceled":
+          document.getElementById("battle-invite-overlay").classList.remove("visible");
+          showToast("Challenge withdrawn");
+          break;
+        case "battle:error": hideBattleWait(); showToast(msg.error); break;
+        case "battle:start":
+          hideBattleWait();
+          document.getElementById("battle-invite-overlay").classList.remove("visible");
+          if (msg.role === "defender") startBattleAsDefender(msg.opponentName);
+          else startBattleAsAttacker(msg.opponentName);
+          break;
+        case "battle:spawn": onBattleSpawn(msg); break;
+        case "battle:state": attackerRenderState(msg); break;
+        case "battle:over": endBattle(msg.winner, false); break;
+        case "battle:opponentLeft": onOpponentLeft(msg.reason); break;
+      }
+    }
+
+    // ---- Matchmaking UI ----
+    function sendBattleInvite(friendId, username) {
+      if (battleActive) { showToast("Finish your current battle first"); return; }
+      hideFriends();
+      battleTargetName = username;
+      connectBattleSocket();
+      // socket may still be connecting; send once open
+      const trySend = () => battleSend({ type: "battle:invite", toUserId: friendId });
+      if (battleSocket && battleSocket.readyState === WebSocket.OPEN) trySend();
+      else if (battleSocket) battleSocket.addEventListener("open", trySend, { once: true });
+    }
+    window.sendBattleInvite = sendBattleInvite;
+
+    function showBattleInvite(fromUsername) {
+      battleOpponent = fromUsername;
+      document.getElementById("battle-invite-text").textContent =
+        fromUsername + " challenges you to battle! You'll command the zombie horde — tap lanes to attack their cookie.";
+      document.getElementById("battle-invite-overlay").classList.add("visible");
+    }
+    function acceptBattle() {
+      document.getElementById("battle-invite-overlay").classList.remove("visible");
+      battleSend({ type: "battle:accept" });
+    }
+    window.acceptBattle = acceptBattle;
+    function declineBattle() {
+      document.getElementById("battle-invite-overlay").classList.remove("visible");
+      battleSend({ type: "battle:decline" });
+    }
+    window.declineBattle = declineBattle;
+
+    function showBattleWait() {
+      document.getElementById("battle-wait-text").textContent =
+        "Waiting for " + (battleTargetName || "your friend") + " to accept…";
+      document.getElementById("battle-wait-overlay").classList.add("visible");
+    }
+    function hideBattleWait() { document.getElementById("battle-wait-overlay").classList.remove("visible"); }
+    function cancelBattleWait() { hideBattleWait(); battleSend({ type: "battle:cancelInvite" }); }
+    window.cancelBattleWait = cancelBattleWait;
+
+    // ---- View setup ----
+    function enterBattleView(role, opponentName) {
+      currentMode = "protector";
+      hideFriends();
+      gameArea.style.display = "none";
+      protectorArea.style.display = "block";
+      instructionsEl.style.display = "none";
+      multiplierDisplayEl.style.display = "none";
+      badgeEl.style.display = "none";
+      gameOverBanner.style.display = "none";
+      document.getElementById("mode-tabs").style.display = "none";
+      const isDef = role === "defender";
+      protectorStatsEl.style.display = isDef ? "block" : "none";
+      storeEl.style.display = "none";
+      protectorStoreEl.style.display = isDef ? "flex" : "none";
+      protectorStoreEl.classList.remove("open");
+      storeToggle.style.display = isDef ? "block" : "none";
+      protectorArea.classList.toggle("battle-attacker", !isDef);
+      document.getElementById("protector-instructions").style.display = "none";
+
+      const hud = document.getElementById("battle-hud");
+      hud.classList.add("visible");
+      document.getElementById("battle-role-label").textContent =
+        isDef ? ("Defend vs " + opponentName) : ("Attacking " + opponentName);
+      document.getElementById("battle-energy-container").classList.toggle("visible", !isDef);
+      document.getElementById("battle-spawn-hint").classList.toggle("visible", !isDef);
+      document.getElementById("battle-timer").textContent = formatTime(BATTLE_DURATION);
+    }
+
+    function exitBattleView() {
+      document.getElementById("mode-tabs").style.display = "";
+      document.getElementById("battle-hud").classList.remove("visible");
+      document.getElementById("battle-energy-container").classList.remove("visible");
+      document.getElementById("battle-spawn-hint").classList.remove("visible");
+      protectorArea.classList.remove("battle-attacker");
+      storeToggle.style.display = "";
+      document.getElementById("protector-instructions").style.display = "block";
+
+      // Reset protector single-player state so a later solo game starts fresh
+      protectorArea.querySelectorAll(".zombie, .zombie-splat, .turret-bullet, .fence, .turret").forEach(el => el.remove());
+      fences = []; turrets = []; zombies = []; bullets = [];
+      straightFenceCount = angledDownCount = angledUpCount = turretCount = 0;
+      killCount = 0; spendableKills = 0; wave = 1; cookieHealth = 100;
+      protectorGameOver = false; protectorRunning = false;
+    }
+
+    // ---- Defender ----
+    function startBattleAsDefender(opponentName) {
+      battleActive = true;
+      battleRole = "defender";
+      battleOpponent = opponentName;
+      stopProtector();
+      protectorArea.querySelectorAll(".zombie, .zombie-splat, .turret-bullet, .fence, .turret").forEach(el => el.remove());
+      fences = []; turrets = []; zombies = []; bullets = [];
+      straightFenceCount = angledDownCount = angledUpCount = turretCount = 0;
+      killCount = 0;
+      spendableKills = BATTLE_START_BUDGET;
+      wave = 1;
+      cookieHealth = BATTLE_START_HEALTH;
+      protectorGameOver = false;
+      protectorPaused = false;
+      protectorRunning = true;
+      battleEndTime = Date.now() + BATTLE_DURATION * 1000;
+      lastBattleBroadcast = 0;
+      cancelPlacement();
+      enterBattleView("defender", opponentName);
+      killCountEl.textContent = 0;
+      waveNumEl.textContent = 1;
+      scoreEl.textContent = 0;
+      healthBar.style.width = "100%";
+      healthBar.style.background = "#4caf50";
+      protectorCookie.textContent = "\u{1F36A}";
+      updateProtectorStore();
+      requestAnimationFrame(protectorLoop);
+    }
+
+    function onBattleSpawn(msg) {
+      if (!battleActive || battleRole !== "defender") return;
+      const rect = protectorArea.getBoundingClientRect();
+      const zombieSize = window.innerWidth <= 600 ? 50 : 60;
+      const y = (msg.yFrac || 0) * (rect.height - zombieSize);
+      spawnZombie(y, BATTLE_ZOMBIE_SPEED);
+    }
+
+    function maybeBroadcastBattleState(rect) {
+      const now = Date.now();
+      if (now - lastBattleBroadcast < 55) return;
+      lastBattleBroadcast = now;
+      const zs = zombies.map(z => ({ xf: z.x / rect.width, yf: z.y / rect.height }));
+      const timeLeft = Math.max(0, Math.ceil((battleEndTime - now) / 1000));
+      battleSend({ type: "battle:state", zombies: zs, health: cookieHealth, kills: killCount, timeLeft });
+      document.getElementById("battle-timer").textContent = formatTime(timeLeft);
+    }
+
+    // ---- Attacker ----
+    function startBattleAsAttacker(opponentName) {
+      battleActive = true;
+      battleRole = "attacker";
+      battleOpponent = opponentName;
+      stopProtector();
+      attackerZombieEls.forEach(e => e.remove());
+      attackerZombieEls = [];
+      protectorArea.querySelectorAll(".zombie, .zombie-splat, .turret-bullet, .fence, .turret").forEach(el => el.remove());
+      zombies = []; bullets = [];
+      battleEnergy = ATTACKER_MAX_ENERGY;
+      cookieHealth = BATTLE_START_HEALTH;
+      cancelPlacement();
+      enterBattleView("attacker", opponentName);
+      protectorCookie.textContent = "\u{1F36A}";
+      healthBar.style.width = "100%";
+      healthBar.style.background = "#4caf50";
+      lastEnergyTs = performance.now();
+      attackerRunning = true;
+      requestAnimationFrame(attackerLoop);
+    }
+
+    function attackerLoop(ts) {
+      if (!attackerRunning) return;
+      const dt = Math.min(0.1, (ts - lastEnergyTs) / 1000);
+      lastEnergyTs = ts;
+      battleEnergy = Math.min(ATTACKER_MAX_ENERGY, battleEnergy + ENERGY_REGEN * dt);
+      const bar = document.getElementById("battle-energy-bar");
+      bar.style.width = (battleEnergy / ATTACKER_MAX_ENERGY * 100) + "%";
+      bar.style.background = battleEnergy >= SPAWN_COST ? "#9c27b0" : "#555";
+      requestAnimationFrame(attackerLoop);
+    }
+
+    function attackerTapSpawn(clientX, clientY) {
+      if (!battleActive || battleRole !== "attacker") return;
+      const rect = protectorArea.getBoundingClientRect();
+      if (battleEnergy < SPAWN_COST) {
+        const hint = document.getElementById("battle-spawn-hint");
+        hint.textContent = "Not enough energy!";
+        clearTimeout(hint._t);
+        hint._t = setTimeout(() => { hint.textContent = "Tap a lane to send a zombie"; }, 900);
+        return;
+      }
+      battleEnergy -= SPAWN_COST;
+      const yFrac = Math.max(0, Math.min(1, (clientY - rect.top) / rect.height));
+      battleSend({ type: "battle:spawn", yFrac });
+      // local tap feedback
+      const ping = document.createElement("div");
+      ping.className = "spawn-ping";
+      ping.style.left = (clientX - rect.left) + "px";
+      ping.style.top = (clientY - rect.top) + "px";
+      protectorArea.appendChild(ping);
+      setTimeout(() => ping.remove(), 500);
+    }
+
+    protectorArea.addEventListener("pointerdown", (e) => {
+      if (battleActive && battleRole === "attacker") attackerTapSpawn(e.clientX, e.clientY);
+    });
+
+    function attackerRenderState(state) {
+      if (!battleActive || battleRole !== "attacker") return;
+      const rect = protectorArea.getBoundingClientRect();
+      const list = state.zombies || [];
+      while (attackerZombieEls.length < list.length) {
+        const el = document.createElement("div");
+        el.className = "zombie";
+        el.textContent = "\u{1F9DF}";
+        el.style.pointerEvents = "none";
+        protectorArea.appendChild(el);
+        attackerZombieEls.push(el);
+      }
+      while (attackerZombieEls.length > list.length) attackerZombieEls.pop().remove();
+      list.forEach((z, i) => {
+        attackerZombieEls[i].style.left = (z.xf * rect.width) + "px";
+        attackerZombieEls[i].style.top = (z.yf * rect.height) + "px";
+      });
+      cookieHealth = state.health;
+      healthBar.style.width = Math.max(0, state.health) + "%";
+      healthBar.style.background = state.health > 50 ? "#4caf50" : state.health > 25 ? "#ff9800" : "#e44d26";
+      document.getElementById("battle-timer").textContent = formatTime(state.timeLeft);
+    }
+
+    // ---- End / cleanup ----
+    function cleanupBattleField() {
+      zombies.forEach(z => z.el.remove()); zombies = [];
+      bullets.forEach(b => b.el.remove()); bullets = [];
+      attackerZombieEls.forEach(e => e.remove()); attackerZombieEls = [];
+    }
+
+    function endBattle(winner, authority) {
+      if (!battleActive) return;
+      battleActive = false;
+      attackerRunning = false;
+      protectorRunning = false;
+      if (spawnTimer) { clearTimeout(spawnTimer); spawnTimer = null; }
+      if (authority) battleSend({ type: "battle:over", winner });
+      cleanupBattleField();
+      const iWon = winner === battleRole;
+      document.getElementById("battle-result-title").textContent = iWon ? "\u{1F3C6} You Win!" : "\u{1F480} You Lose";
+      let text;
+      if (battleRole === "defender") text = iWon ? "Your cookie survived the horde!" : "Your cookie was devoured!";
+      else text = iWon ? "You destroyed their cookie!" : "Their cookie held out. Try again!";
+      document.getElementById("battle-result-text").textContent = text;
+      document.getElementById("battle-hud").classList.remove("visible");
+      document.getElementById("battle-result-overlay").classList.add("visible");
+    }
+
+    function onOpponentLeft(reason) {
+      if (!battleActive) return;
+      battleActive = false;
+      attackerRunning = false;
+      protectorRunning = false;
+      if (spawnTimer) { clearTimeout(spawnTimer); spawnTimer = null; }
+      cleanupBattleField();
+      document.getElementById("battle-result-title").textContent = "Opponent Left";
+      document.getElementById("battle-result-text").textContent =
+        reason === "disconnect" ? "Your opponent disconnected." : "Your opponent left the battle.";
+      document.getElementById("battle-hud").classList.remove("visible");
+      document.getElementById("battle-result-overlay").classList.add("visible");
+    }
+
+    function quitBattle() {
+      if (!battleActive) return;
+      battleSend({ type: "battle:quit" });
+      battleActive = false;
+      attackerRunning = false;
+      protectorRunning = false;
+      if (spawnTimer) { clearTimeout(spawnTimer); spawnTimer = null; }
+      cleanupBattleField();
+      document.getElementById("battle-hud").classList.remove("visible");
+      battleRole = null;
+      exitBattleView();
+      switchMode("clicker");
+    }
+    window.quitBattle = quitBattle;
+
+    function closeBattleResult() {
+      document.getElementById("battle-result-overlay").classList.remove("visible");
+      exitBattleView();
+      battleRole = null;
+      switchMode("clicker");
+    }
+    window.closeBattleResult = closeBattleResult;
 
     // Check if already logged in
     fetch("/api/me").then(r => r.json()).then(data => {

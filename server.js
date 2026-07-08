@@ -2,6 +2,8 @@ const express = require("express");
 const session = require("express-session");
 const pgSession = require("connect-pg-simple")(session);
 const { Pool } = require("pg");
+const http = require("http");
+const WebSocket = require("ws");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -97,19 +99,19 @@ async function initDB() {
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(
-  session({
-    store: new pgSession({
-      pool,
-      tableName: "session",
-      createTableIfMissing: true,
-    }),
-    secret: process.env.SESSION_SECRET || "dev-secret-key",
-    resave: false,
-    saveUninitialized: false,
-    cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 }, // 1 week
-  })
-);
+
+const sessionParser = session({
+  store: new pgSession({
+    pool,
+    tableName: "session",
+    createTableIfMissing: true,
+  }),
+  secret: process.env.SESSION_SECRET || "dev-secret-key",
+  resave: false,
+  saveUninitialized: false,
+  cookie: { maxAge: 7 * 24 * 60 * 60 * 1000 }, // 1 week
+});
+app.use(sessionParser);
 app.use(express.static("public"));
 
 // Auth middleware
@@ -475,10 +477,150 @@ app.get("/admin", (req, res) => {
   res.sendFile(__dirname + "/public/admin.html");
 });
 
+// ============ BATTLE WEBSOCKET RELAY ============
+// The server is a matchmaker + relay only. The *defender* client runs the
+// authoritative game simulation; the attacker sees a mirrored view. All game
+// coordinates are sent as fractions (0..1) so screen sizes don't matter.
+
+const server = http.createServer(app);
+const wss = new WebSocket.Server({ noServer: true });
+
+// userId -> ws (most recent socket wins)
+const sockets = new Map();
+// userId -> { opponentId, role, username } while in an active battle
+const partners = new Map();
+// pending invites: inviteeId -> { fromId, fromUsername }
+const invites = new Map();
+
+server.on("upgrade", (req, socket, head) => {
+  sessionParser(req, {}, () => {
+    if (!req.session || !req.session.userId) {
+      socket.destroy();
+      return;
+    }
+    wss.handleUpgrade(req, socket, head, (ws) => {
+      ws.userId = req.session.userId;
+      ws.username = req.session.username;
+      wss.emit("connection", ws, req);
+    });
+  });
+});
+
+function send(userId, msg) {
+  const ws = sockets.get(userId);
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify(msg));
+    return true;
+  }
+  return false;
+}
+
+function endBattleFor(userId, reason) {
+  const p = partners.get(userId);
+  if (!p) return;
+  partners.delete(userId);
+  const opp = partners.get(p.opponentId);
+  if (opp && opp.opponentId === userId) {
+    partners.delete(p.opponentId);
+    send(p.opponentId, { type: "battle:opponentLeft", reason });
+  }
+}
+
+wss.on("connection", (ws) => {
+  const uid = ws.userId;
+  // Replace any existing socket for this user
+  const existing = sockets.get(uid);
+  if (existing && existing !== ws) existing.close();
+  sockets.set(uid, ws);
+
+  ws.on("message", async (raw) => {
+    let msg;
+    try {
+      msg = JSON.parse(raw.toString());
+    } catch {
+      return;
+    }
+    const type = msg.type;
+
+    // ---- Matchmaking ----
+    if (type === "battle:invite") {
+      const targetId = parseInt(msg.toUserId);
+      if (!targetId || targetId === uid) return;
+      if (!(await areFriends(uid, targetId))) return send(uid, { type: "battle:error", error: "You can only battle friends" });
+      if (partners.has(uid)) return send(uid, { type: "battle:error", error: "You're already in a battle" });
+      if (partners.has(targetId)) return send(uid, { type: "battle:error", error: "That friend is busy in a battle" });
+      if (!sockets.has(targetId)) return send(uid, { type: "battle:error", error: "That friend is offline" });
+      invites.set(targetId, { fromId: uid, fromUsername: ws.username });
+      send(targetId, { type: "battle:invited", fromId: uid, fromUsername: ws.username });
+      send(uid, { type: "battle:invitePending", toUserId: targetId });
+      return;
+    }
+
+    if (type === "battle:accept") {
+      const invite = invites.get(uid);
+      if (!invite) return send(uid, { type: "battle:error", error: "Invite expired" });
+      invites.delete(uid);
+      const challengerId = invite.fromId;
+      if (partners.has(challengerId) || partners.has(uid) || !sockets.has(challengerId)) {
+        return send(uid, { type: "battle:error", error: "Battle no longer available" });
+      }
+      // Challenger defends; invitee attacks (spawns zombies)
+      partners.set(challengerId, { opponentId: uid, role: "defender", username: ws.username });
+      partners.set(uid, { opponentId: challengerId, role: "attacker", username: invite.fromUsername });
+      send(challengerId, { type: "battle:start", role: "defender", opponentName: ws.username });
+      send(uid, { type: "battle:start", role: "attacker", opponentName: invite.fromUsername });
+      return;
+    }
+
+    if (type === "battle:decline") {
+      const invite = invites.get(uid);
+      if (invite) {
+        invites.delete(uid);
+        send(invite.fromId, { type: "battle:declined", byName: ws.username });
+      }
+      return;
+    }
+
+    if (type === "battle:cancelInvite") {
+      for (const [inviteeId, inv] of invites) {
+        if (inv.fromId === uid) {
+          invites.delete(inviteeId);
+          send(inviteeId, { type: "battle:inviteCanceled" });
+        }
+      }
+      return;
+    }
+
+    // ---- In-battle relay: forward to opponent ----
+    if (type === "battle:spawn" || type === "battle:state" || type === "battle:over") {
+      const p = partners.get(uid);
+      if (!p) return;
+      send(p.opponentId, msg);
+      if (type === "battle:over") {
+        // Match finished; clear both
+        partners.delete(uid);
+        partners.delete(p.opponentId);
+      }
+      return;
+    }
+
+    if (type === "battle:quit") {
+      endBattleFor(uid, "quit");
+      return;
+    }
+  });
+
+  ws.on("close", () => {
+    if (sockets.get(uid) === ws) sockets.delete(uid);
+    invites.delete(uid);
+    endBattleFor(uid, "disconnect");
+  });
+});
+
 // Start
 initDB()
   .then(() => {
-    app.listen(PORT, () => {
+    server.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
     });
   })
